@@ -272,9 +272,11 @@ checks unbuilt is still a successful POC.
 treeline/
   SPECS.md                this file
   assets/                 dev/test data (gitignored except small files — see assets/README.md)
-  src/treeline/           tree.py (derive/load), vote.py, harmonize.py, scanvi.py,
-                          nsforest.py, report.py — flat, no subpackages
-  apps/poc_1619.py        the POC driver over assets/
+  src/treeline/           the API: tree.py (derive-tree), annotate.py (orchestrates
+                          vote.py + nsforest.py), scanvi.py (integrate), colors.py,
+                          harmonize.py, cli.py — flat, no subpackages
+  apps/                   consumers, not API: poc_1619.py (per-sample driver),
+                          joint_1619.py (integration loop driver), report.py (HTML report)
 ```
 
 Conventions inherited from the sibling repos: `src/`-layout, ruff + mypy + pytest,

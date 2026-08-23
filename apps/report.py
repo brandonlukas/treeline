@@ -1,96 +1,58 @@
-"""Static HTML report: UMAPs + the coarse-to-fine slider over multi-level labels.
+"""Static HTML report: a downstream consumer of the treeline API (not part of it).
 
-Reads the driver's intermediates (results/poc), embeds everything as JSON, renders
-with vanilla JS on canvas. No server, no frameworks.
+Renders every annotated h5ad in a results directory — per-sample views, the integrated
+joint, and any refined within-class views — with the coarse-to-fine slider, hierarchical
+colors from `treeline.colors.palette`, per-cluster path tables and NS-Forest substates.
+Vanilla JS on canvas; no server, no frameworks.
 
-    python -m treeline.report results/poc report.html
+    .venv/bin/python apps/report.py results/poc report.html
 """
 
 from __future__ import annotations
 
-import colorsys
 import json
 import sys
 from pathlib import Path
 
-import pandas as pd
+import scanpy as sc
 
-from treeline.colors import assign
+from treeline.annotate import annotations
+from treeline.colors import palette
 from treeline.harmonize import observed_paths, path_tree
 
 
-def _suffix_color(parent_hex: str, i: int, k: int) -> str:
-    """A substate's color: the parent's hue exactly (derivatives stay in the family),
-    siblings spaced along a poline-style curve through (saturation, lightness) —
-    light-and-muted at one end, dark-and-rich at the other."""
-    r, g, b = (int(parent_hex[j : j + 2], 16) / 255 for j in (1, 3, 5))
-    h, _, _ = colorsys.rgb_to_hls(r, g, b)
-    t = i / (k - 1) if k > 1 else 0.5
-    lightness = 0.64 - 0.40 * t
-    saturation = 0.42 + 0.38 * t
-    r, g, b = colorsys.hls_to_rgb(h, lightness, saturation)
-    return "#{:02x}{:02x}{:02x}".format(int(r * 255), int(g * 255), int(b * 255))
-
-
 def build_data(results: Path) -> dict:
-    calls = json.loads((results / "calls.json").read_text())
-    panels = json.loads((results / "panels.json").read_text())
-    paths = [p for sample in calls.values() for p in observed_paths({"s": sample})]
-    colors = assign(paths)
-
-    samples = {}
-    for pq in sorted(results.glob("*.parquet")):
-        if pq.stem == "joint":
-            continue
-        df = pd.read_parquet(pq)
-        if "umap1" not in df.columns:  # e.g. integrated_latent.parquet — not a view
-            continue
-        res_keys = [c.removeprefix("leiden_") for c in df.columns if c.startswith("leiden_")]
+    samples, calls, suffixes, anns = {}, {}, {}, []
+    for f in sorted(results.glob("*_annotated.h5ad")):
+        a = sc.read_h5ad(f)
+        name = f.stem.removesuffix("_annotated").replace("refined__", "refined · ")
+        ann = annotations(a)
+        anns.append(ann)
+        keys = ann["cluster_keys"]
+        um = a.obsm["X_umap"]
         entry = {
-            "x": [round(v, 2) for v in df["umap1"]],
-            "y": [round(v, 2) for v in df["umap2"]],
-            "clusters": {r: df[f"leiden_{r}"].astype(float).astype(int).tolist() for r in res_keys},
+            "x": [round(float(v), 2) for v in um[:, 0]],
+            "y": [round(float(v), 2) for v in um[:, 1]],
+            "clusters": {k: a.obs[k].astype(str).astype(int).tolist() for k in keys},
         }
-        if "sample" in df.columns:  # integrated/refined views: same nuclei as the samples
-            names = sorted(df["sample"].unique())
+        if "sample" in a.obs.columns:  # integrated/refined views: same nuclei as the samples
+            names = sorted(a.obs["sample"].unique().tolist())
             entry["sampleNames"] = names
-            entry["sample"] = [names.index(s) for s in df["sample"]]
+            entry["sample"] = [names.index(s) for s in a.obs["sample"]]
             entry["integrated"] = True
-        samples[pq.stem.replace("refined__", "refined · ")] = entry
-
-    jdf = pd.read_parquet(results / "joint.parquet")
-    names = sorted(jdf["sample"].unique())
-    jres = [c.removeprefix("leiden_") for c in jdf.columns if c.startswith("leiden_")]
-    joint = {
-        "x": [round(v, 2) for v in jdf["umap1"]],
-        "y": [round(v, 2) for v in jdf["umap2"]],
-        "sampleNames": names,
-        "sample": [names.index(s) for s in jdf["sample"]],
-        "clusters": {r: jdf[f"leiden_{r}"].astype(float).astype(int).tolist() for r in jres},
-    }
-    suffix_path = results / "suffixes.json"
-    suffixes = json.loads(suffix_path.read_text()) if suffix_path.exists() else {}
-    # substate labels ("{gene}+ <label>") get shades of the parent path's hue
-    by_parent: dict[str, list[str]] = {}
-    for sample, by_res in suffixes.items():
-        for res, by_cl in by_res.items():
-            for cl, entry in by_cl.items():
-                parent = " > ".join(calls[sample][res][cl]["path"])
-                key = f"{parent} ⊕ {entry['gene']}"
-                by_parent.setdefault(parent, [])
-                if key not in by_parent[parent]:
-                    by_parent[parent].append(key)
-    for parent, keys in by_parent.items():
-        for i, key in enumerate(sorted(keys)):
-            colors[key] = _suffix_color(colors[parent], i, len(keys))
-
+        samples[name] = entry
+        calls[name] = ann["calls"]
+        suffixes[name] = ann["suffixes"]
+    paths = observed_paths(calls)
+    panels: dict = {}
+    for ann in anns:
+        panels.update(ann.get("panels", {}))
     return {
         "samples": samples,
-        "joint": joint,
         "calls": calls,
-        "colors": colors,
-        "panels": panels,
         "suffixes": suffixes,
+        "panels": panels,
+        "colors": palette(*anns),
         "tree": path_tree(paths),
         "maxDepth": max((len(p) for p in paths), default=1),
     }
@@ -186,7 +148,7 @@ footer { color:var(--muted); font-size:0.82rem; border-top:1px solid var(--line)
       <span id="depthVal"></span></span>
     <span><span class="ctl-label">Color by</span>&nbsp; <span class="seg" id="colorSeg">
       <button data-v="label" class="on">labels</button><button data-v="cluster">clusters</button></span></span>
-    <span><span class="ctl-label">Joint colors</span>&nbsp; <span class="seg" id="jointSeg">
+    <span><span class="ctl-label">Integrated colors</span>&nbsp; <span class="seg" id="jointSeg">
       <button data-v="label" class="on">labels</button><button data-v="sample">sample</button></span></span>
   </div>
   <div class="grid" id="plots"></div>
@@ -196,9 +158,10 @@ footer { color:var(--muted); font-size:0.82rem; border-top:1px solid var(--line)
   entries are NS-Forest substates — what grows above the treeline.</p>
   <div id="treeview"></div>
   <div id="tables"></div>
-  <footer>Joint view is a plain concatenation of both samples — <b>no batch correction</b>; per-sample cluster
-  labels are harmonized purely through their CL descent paths. Gate refusals are automated, self-reporting rules
-  (SPECS provenance tier 2). Generated by treeline.</footer>
+  <footer>Per-sample views are annotated independently; the integrated view is scANVI on the tree-cut
+  consensus prior, reclustered by the driver and re-annotated by the same vote. Gate refusals are
+  automated, self-reporting rules; ✍ overrides are signed (SPECS provenance tiers). Generated by
+  apps/report.py, a consumer of the treeline API.</footer>
 </div>
 <script>
 const D = __DATA__;
@@ -230,6 +193,7 @@ function leaf(label) {
   }
   const p = label.split(" > "); return p[p.length-1];
 }
+function resName(r) { return r.replace(/^leiden_/, ""); }
 
 function makeCanvas(id, title, n) {
   const div = document.createElement("div"); div.className = "panel";
@@ -268,10 +232,6 @@ function render() {
       : state.colorBy === "cluster" ? i => clusterColor(cls[i])
       : i => colorFor(labels[i]));
   }
-  const J = D.joint, jc = J.clusters[state.res];
-  draw(els.joint, J.x, J.y, state.jointBy === "sample"
-    ? i => sampleCols[J.sample[i]]
-    : i => colorFor(labelKey(J.sampleNames[J.sample[i]], state.res, jc[i], state.depth)));
   // legend, ordered by count
   const lg = document.getElementById("legend"); lg.innerHTML = "";
   Object.entries(counts).sort((a,b) => b[1]-a[1]).forEach(([label, n]) => {
@@ -355,7 +315,7 @@ function renderTables() {
       const e = suffixOf(name, r, cl);
       const suffix = e ? ` <span class="chip suffix" title="NS-Forest markers: ${e.markers.join(" AND ")} · Fbeta=${e.fbeta}">${e.gene}+</span>` : "";
       const genes = c.levels.map(lv => {
-        const panel = (D.panels[lv.node]||[]).map(g => `<span class="gene">${g}</span>`).join("");
+        const panel = (D.panels && D.panels[lv.node] || []).map(g => `<span class="gene">${g}</span>`).join("");
         return panel ? `<div class="genes"><b>${lv.node}</b> (${(lv.share*100).toFixed(0)}% agree): ${panel}</div>` : "";
       }).join("");
       const details = genes ? `<details><summary>marker genes per level</summary>${genes}</details>` : "";
@@ -363,7 +323,7 @@ function renderTables() {
         <td>${chain}${suffix}${refusal}${override}${details}</td></tr>`;
     });
     const sec = document.createElement("div");
-    sec.innerHTML = `<h2>${name} · resolution ${r} · ${Object.keys(byCl).length} clusters</h2>
+    sec.innerHTML = `<h2>${name} · resolution ${resName(r)} · ${Object.keys(byCl).length} clusters</h2>
       <div class="tablewrap"><table>
       <tr><th>cluster</th><th>n</th><th>label path · vote share per level</th></tr>${rows}</table></div>`;
     host.appendChild(sec);
@@ -373,7 +333,7 @@ function renderTables() {
 // controls
 const resSeg = document.getElementById("resSeg");
 RES.forEach(r => {
-  const b = document.createElement("button"); b.textContent = r; if (r === state.res) b.className = "on";
+  const b = document.createElement("button"); b.textContent = resName(r); if (r === state.res) b.className = "on";
   b.onclick = () => { state.res = r; resSeg.querySelectorAll("button").forEach(x => x.className = "");
     b.className = "on"; render(); };
   resSeg.appendChild(b);
@@ -390,8 +350,7 @@ const depthEl = document.getElementById("depth");
 depthEl.max = D.maxDepth + (HAS_SUFFIX ? 1 : 0);  // one stop past the treeline
 depthEl.oninput = () => { state.depth = +depthEl.value; render(); };
 
-for (const [name, S] of Object.entries(D.samples)) els[name] = makeCanvas("c_"+name, name, S.x.length);
-els.joint = makeCanvas("c_joint", "joint (uncorrected concat)", D.joint.x.length);
+for (const [name, S] of Object.entries(D.samples)) els[name] = makeCanvas("c_"+name.replace(/[^a-z0-9]/gi,"_"), name, S.x.length);
 render();
 window.addEventListener("resize", () => render());
 </script>

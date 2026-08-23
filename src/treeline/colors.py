@@ -37,6 +37,39 @@ def _hex(h: float, lightness: float) -> str:
     return "#{:02x}{:02x}{:02x}".format(int(r * 255), int(g * 255), int(b * 255))
 
 
+def palette(*annotation_dicts: dict) -> dict[str, str]:
+    """The colors verb: one or more `annotate` outputs (`annotations(adata)`) -> label
+    hex map, covering every observed path prefix and every `{path} ⊕ {gene}` substate
+    (substates ramp within the parent hue: poline-style saturation/lightness curve)."""
+    paths: dict[tuple[str, ...], None] = {}
+    for ann in annotation_dicts:
+        for by_cl in ann["calls"].values():
+            for call in by_cl.values():
+                paths[tuple(call["path"])] = None
+    out = assign(list(paths))
+    by_parent: dict[str, list[str]] = {}
+    for ann in annotation_dicts:
+        for key, sfx in ann.get("suffixes", {}).items():
+            for cl, e in sfx.items():
+                parent = " > ".join(ann["calls"][key][cl]["path"])
+                k = f"{parent} ⊕ {e['gene']}"
+                by_parent.setdefault(parent, [])
+                if k not in by_parent[parent]:
+                    by_parent[parent].append(k)
+    for parent, keys in by_parent.items():
+        for i, k in enumerate(sorted(keys)):
+            out[k] = _substate_hex(out[parent], i, len(keys))
+    return out
+
+
+def _substate_hex(parent_hex: str, i: int, k: int) -> str:
+    r, g, b = (int(parent_hex[j : j + 2], 16) / 255 for j in (1, 3, 5))
+    h, _, _ = colorsys.rgb_to_hls(r, g, b)
+    t = i / (k - 1) if k > 1 else 0.5
+    r, g, b = colorsys.hls_to_rgb(h, 0.64 - 0.40 * t, 0.42 + 0.38 * t)
+    return "#{:02x}{:02x}{:02x}".format(int(r * 255), int(g * 255), int(b * 255))
+
+
 def assign(paths: list[tuple[str, ...]]) -> dict[str, str]:
     """Path (and every prefix of it) -> hex color. Siblings spread across the wheel at
     the first branching; below it children keep close to the parent's hue, and lightness
