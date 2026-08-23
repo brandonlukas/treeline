@@ -13,19 +13,31 @@ term for yet.
 Status: **proof of concept**. Target: make it work on the one dataset in `assets/`.
 Comprehensive benchmarks, other datasets, other ontologies: explicit non-goals for now.
 
-## Scope (what treeline is, in one paragraph)
+## Scope: one prep step, three capabilities
 
-The user supplies scRNA-seq expression and cluster labels (one or more resolutions) plus
-a CL-labeled gene-set table (CellGuide export). Per sample, treeline annotates the
-clusters at multiple levels — as descriptive as the ontology and the marker sets allow —
-then falls back to data-driven NS-Forest `{gene}+` suffixes for what the ontology cannot
-name. With two or more samples, it additionally integrates (scANVI, coarse tree-cut
-labels; multiple supplied resolutions strengthen the prior via cross-resolution
-consensus, with disagreements becoming scANVI's `Unknown` class) and **emits the joint
-latent**. Clustering that latent is again the user's: recluster at your discretion and
-resubmit the joint expression + clusterings to the same annotate stage — treeline
-performs no clustering anywhere. (The POC driver runs Leiden on the latent, as it does
-per sample: driver business, not contract.) **Not treeline's job by default:** upstream QC and
+1. **`derive-tree`** (prep, once per gene-set table): CL-labeled gene sets -> the frozen,
+   dated CL DAG via OLS4. Explicit — never folded into annotate — because the dated
+   artifact pins provenance (live API at derivation, frozen artifact at inference).
+2. **`annotate`**: scRNA-seq expression + cluster labels (one or more resolutions, any
+   clustering method) + gene sets + frozen DAG -> multi-level annotation, as descriptive
+   as the ontology and marker sets support, falling back to NS-Forest `{gene}+` suffixes
+   above the treeline. Results are written back into the AnnData (per-cluster calls,
+   shares, refusals, suffixes in `.uns["treeline"]`; per-nucleus labels in `.obs`), so an
+   annotated `.h5ad` is self-contained.
+3. **`integrate`**: two or more *annotated* AnnDatas -> scANVI cell-type-aware
+   semi-supervised integration. Supervision is the tree-cut consensus prior (multiple
+   supplied resolutions strengthen it; cross-resolution disagreement at the cut ->
+   `Unknown`, scANVI's unlabeled class). Emits the joint latent and stops.
+4. **`colors`**: annotation output -> the hierarchical palette (same parent, same hue;
+   depth darkens; substates ramp within the parent hue).
+
+**Treeline performs no clustering anywhere.** The user's loop: cluster (their method) ->
+annotate per sample -> integrate -> recluster the latent (their method) -> annotate the
+joint -> colors at every step. Not in the public API: upstream QC/ambient correction,
+within-type reclustering (`--refine` remains an opt-in convenience), and the HTML report —
+the report is a downstream *consumer* of these verbs (its natural views: one sample,
+samples side by side, integrated, integrated + relabels), kept in `apps/` for development
+and to be rebuilt against the stable API later. **Not treeline's job by default:** upstream QC and
 ambient correction, per-sample clustering, and within-cell-type reclustering — subtype
 discovery beyond the supplied clusterings is the user's discretion (`--refine` ships as
 an opt-in convenience because the latent and labels are already in hand).
