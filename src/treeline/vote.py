@@ -38,11 +38,11 @@ GATE_SCORE_R = 0.9  # per-nucleus exclusive-score correlation at/above which des
 N_MARKERS = 10  # top genes taken per gene set
 
 
-def load_panels(csv_path, dag: dict) -> dict[str, list[str]]:
+def load_panels(csv_path, dag: dict, n_markers: int = N_MARKERS) -> dict[str, list[str]]:
     """Node label -> marker symbols; a node's sets merge (union, order kept)."""
     df = pd.read_csv(csv_path)
     df["Gene Set Name"] = df["Gene Set Name"].ffill().str.removesuffix(" - marker genes")
-    by_set = {name: g["Gene Symbol"].head(N_MARKERS).tolist() for name, g in df.groupby("Gene Set Name", sort=False)}
+    by_set = {name: g["Gene Symbol"].head(n_markers).tolist() for name, g in df.groupby("Gene Set Name", sort=False)}
     panels = {}
     for label, node in dag["nodes"].items():
         genes = list(dict.fromkeys(g for s in node["sets"] for g in by_set[s]))
@@ -107,7 +107,14 @@ def _scored_desc(dag: dict, label: str, scored: set[str]) -> set[str]:
 
 
 def assign_cluster(
-    dag: dict, panels: dict[str, list[str]], scores: pd.DataFrame, overrides: list[dict] | None = None
+    dag: dict,
+    panels: dict[str, list[str]],
+    scores: pd.DataFrame,
+    overrides: list[dict] | None = None,
+    *,
+    descend_agree: float = DESCEND_AGREE,
+    gate_overlap: float = GATE_OVERLAP,
+    gate_score_r: float = GATE_SCORE_R,
 ) -> Call:
     """Descend the DAG for one cluster. `scores` is nuclei x score_{label} columns."""
     overrides = overrides or []
@@ -132,12 +139,12 @@ def assign_cluster(
         runner = str(shares.index[1]) if len(shares) > 1 else None
 
         if runner is not None:
-            gate = _gate(dag, panels, cand[win], cand[runner], scores)
+            gate = _gate(dag, panels, cand[win], cand[runner], scores, gate_overlap, gate_score_r)
             if gate:
                 parent = call.path[-1] if call.path else "root"
                 call.refused = f"descent from '{parent}' refused: '{win}' vs '{runner}' {gate}"
                 break
-        if share < DESCEND_AGREE:
+        if share < descend_agree:
             break
         call.path.append(win)
         call.levels.append(
@@ -158,7 +165,10 @@ def assign_cluster(
     return call
 
 
-def _gate(dag, panels, desc_a: set[str], desc_b: set[str], scores: pd.DataFrame) -> str | None:
+def _gate(
+    dag, panels, desc_a: set[str], desc_b: set[str], scores: pd.DataFrame,
+    gate_overlap: float = GATE_OVERLAP, gate_score_r: float = GATE_SCORE_R,
+) -> str | None:
     """Refusal reason if the two sibling subtrees are indiscriminable on their exclusive
     descendants; None if the descent may be offered. Containment is exempt (structural)."""
     excl_a, excl_b = desc_a - desc_b, desc_b - desc_a
@@ -169,7 +179,7 @@ def _gate(dag, panels, desc_a: set[str], desc_b: set[str], scores: pd.DataFrame)
     if not genes_a or not genes_b:
         return None
     shared, smaller = len(genes_a & genes_b), min(len(genes_a), len(genes_b))
-    if shared / smaller < GATE_OVERLAP:
+    if shared / smaller < gate_overlap:
         return None
     sub_a = scores[[f"score_{n}" for n in excl_a if n in {c.removeprefix('score_') for c in scores.columns}]]
     sub_b = scores[[f"score_{n}" for n in excl_b if n in {c.removeprefix('score_') for c in scores.columns}]]
@@ -177,16 +187,27 @@ def _gate(dag, panels, desc_a: set[str], desc_b: set[str], scores: pd.DataFrame)
         return None
     with np.errstate(invalid="ignore"):
         r = float(np.corrcoef(sub_a.max(axis=1), sub_b.max(axis=1))[0, 1])
-    if np.isfinite(r) and r >= GATE_SCORE_R:  # both criteria must trip
+    if np.isfinite(r) and r >= gate_score_r:  # both criteria must trip
         return f"siblings share {shared}/{smaller} exclusive genes, score r={r:.2f}"
     return None
 
 
 def assign_all(
-    obs: pd.DataFrame, dag: dict, panels: dict[str, list[str]], cluster_key: str, overrides: list[dict] | None = None
+    obs: pd.DataFrame,
+    dag: dict,
+    panels: dict[str, list[str]],
+    cluster_key: str,
+    overrides: list[dict] | None = None,
+    *,
+    descend_agree: float = DESCEND_AGREE,
+    gate_overlap: float = GATE_OVERLAP,
+    gate_score_r: float = GATE_SCORE_R,
 ) -> dict[str, Call]:
     score_cols = [c for c in obs.columns if c.startswith("score_")]
     return {
-        str(cl): assign_cluster(dag, panels, grp[score_cols], overrides)
+        str(cl): assign_cluster(
+            dag, panels, grp[score_cols], overrides,
+            descend_agree=descend_agree, gate_overlap=gate_overlap, gate_score_r=gate_score_r,
+        )
         for cl, grp in obs.groupby(cluster_key, observed=True)
     }

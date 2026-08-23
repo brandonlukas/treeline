@@ -34,10 +34,18 @@ def main() -> None:
     a.add_argument("--clusters", nargs="+", required=True, metavar="OBS_KEY")
     a.add_argument("--overrides")
     a.add_argument("--no-suffixes", action="store_true")
+    a.add_argument("--n-markers", type=int, default=None, help="top genes per gene set (default 10)")
+    a.add_argument("--descend-agree", type=float, default=None, help="vote share to descend (default 0.5)")
+    a.add_argument("--gate-overlap", type=float, default=None, help="gate: exclusive-gene overlap (default 0.5)")
+    a.add_argument("--gate-score-r", type=float, default=None, help="gate: exclusive-score correlation (default 0.9)")
     a.add_argument("-o", "--out", required=True)
 
     i = sub.add_parser("integrate", help="annotated h5ads -> joint h5ad with the scANVI latent")
     i.add_argument("h5ads", nargs="+")
+    i.add_argument("--supervise-depth", type=int, default=None, help="tree cut for the prior (default 2)")
+    i.add_argument("--n-latent", type=int, default=None, help="latent dimensions (default 30)")
+    i.add_argument("--classification-ratio", type=float, default=None,
+                   help="label pull vs mixing (default 50; a judgment call when sample==condition)")
     i.add_argument("-o", "--out", required=True)
 
     c = sub.add_parser("colors", help="annotated h5ads -> hierarchical label palette (JSON)")
@@ -62,7 +70,11 @@ def main() -> None:
 
         adata = sc.read_h5ad(args.h5ad)
         overrides = load_overrides(args.overrides) if args.overrides else []
-        annotate(adata, load(args.dag), args.gene_sets, args.clusters, overrides, suffixes=not args.no_suffixes)
+        kw = {k: v for k, v in [("n_markers", args.n_markers), ("descend_agree", args.descend_agree),
+                                ("gate_overlap", args.gate_overlap), ("gate_score_r", args.gate_score_r)]
+              if v is not None}
+        annotate(adata, load(args.dag), args.gene_sets, args.clusters, overrides,
+                 suffixes=not args.no_suffixes, **kw)
         adata.write_h5ad(args.out)
         print(f"wrote {args.out}")
 
@@ -71,7 +83,10 @@ def main() -> None:
 
         from treeline.scanvi import integrate
 
-        joint = integrate({Path(f).stem.removesuffix("_annotated"): sc.read_h5ad(f) for f in args.h5ads})
+        kw = {k: v for k, v in [("supervise_depth", args.supervise_depth), ("n_latent", args.n_latent),
+                                ("classification_ratio", args.classification_ratio)]
+              if v is not None}
+        joint = integrate({Path(f).stem.removesuffix("_annotated"): sc.read_h5ad(f) for f in args.h5ads}, **kw)
         joint.write_h5ad(args.out)
         print(f"wrote {args.out} — recluster obsm['X_treeline'] and resubmit through annotate")
 

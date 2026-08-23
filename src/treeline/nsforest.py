@@ -62,7 +62,10 @@ def binary_scores(medians: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def nsforest_group(x: np.ndarray, genes: np.ndarray, clusters: pd.Series) -> dict[str, dict]:
+def nsforest_group(
+    x: np.ndarray, genes: np.ndarray, clusters: pd.Series, *,
+    n_trees: int = N_TREES, top_gini: int = TOP_GINI, top_combo: int = TOP_COMBO, beta: float = BETA,
+) -> dict[str, dict]:
     """NS-Forest over one collapsed group. x: nuclei x candidate genes (dense)."""
     ids = sorted(clusters.unique())
     medians = pd.DataFrame(
@@ -80,12 +83,12 @@ def nsforest_group(x: np.ndarray, genes: np.ndarray, clusters: pd.Series) -> dic
         y = (clusters == cl).values
         s = scores.loc[cl]
         cand = np.where(s.values >= cutoff)[0]
-        if len(cand) < TOP_GINI:  # small groups can have coarse score distributions
-            cand = np.argsort(s.values)[::-1][:TOP_GINI]
-        rf = RandomForestClassifier(n_estimators=N_TREES, n_jobs=-1, random_state=0, class_weight="balanced")
+        if len(cand) < top_gini:  # small groups can have coarse score distributions
+            cand = np.argsort(s.values)[::-1][:top_gini]
+        rf = RandomForestClassifier(n_estimators=n_trees, n_jobs=-1, random_state=0, class_weight="balanced")
         rf.fit(x[:, cand], y)
-        by_gini = cand[np.argsort(rf.feature_importances_)[::-1][:TOP_GINI]]
-        top = sorted(by_gini, key=lambda j: -s.values[j])[:TOP_COMBO]
+        by_gini = cand[np.argsort(rf.feature_importances_)[::-1][:top_gini]]
+        top = sorted(by_gini, key=lambda j: -s.values[j])[:top_combo]
 
         thresholds = {}
         for j in top:
@@ -95,7 +98,7 @@ def nsforest_group(x: np.ndarray, genes: np.ndarray, clusters: pd.Series) -> dic
         for k in range(1, len(top) + 1):
             for combo in combinations(top, k):
                 pred = np.all([x[:, j] > thresholds[j] for j in combo], axis=0)
-                f = fbeta_score(y, pred, beta=BETA, zero_division=0)
+                f = fbeta_score(y, pred, beta=beta, zero_division=0)
                 if f > best_f:
                     best, best_f = combo, f
         markers = [str(genes[j]) for j in sorted(best, key=lambda j: -s.values[j])]
@@ -103,7 +106,11 @@ def nsforest_group(x: np.ndarray, genes: np.ndarray, clusters: pd.Series) -> dic
     return results
 
 
-def suffixes_for(adata, clusters: pd.Series, calls: dict[str, dict]) -> dict[str, dict]:
+def suffixes_for(
+    adata, clusters: pd.Series, calls: dict[str, dict], *,
+    min_cluster: int = MIN_CLUSTER, n_trees: int = N_TREES, top_gini: int = TOP_GINI,
+    top_combo: int = TOP_COMBO, beta: float = BETA,
+) -> dict[str, dict]:
     """cluster id -> {gene, markers, fbeta} for clusters sharing a path with a sibling."""
     by_path: dict[tuple, list[str]] = defaultdict(list)
     for cl, call in calls.items():
@@ -112,7 +119,7 @@ def suffixes_for(adata, clusters: pd.Series, calls: dict[str, dict]) -> dict[str
     out: dict[str, dict] = {}
     for path, group in by_path.items():
         counts = clusters.value_counts()
-        keep = [c for c in group if counts.get(c, 0) >= MIN_CLUSTER]
+        keep = [c for c in group if counts.get(c, 0) >= min_cluster]
         if len(keep) < 2:
             continue
         mask = clusters.isin(keep).values
@@ -122,7 +129,10 @@ def suffixes_for(adata, clusters: pd.Series, calls: dict[str, dict]) -> dict[str
         cand_mask = (nz > 0.5).any(axis=0).values
         x = np.asarray(sub[:, cand_mask].X.todense())
         genes = sub.var_names[cand_mask].to_numpy()
-        group_res = nsforest_group(x, genes, subcl.reset_index(drop=True))
+        group_res = nsforest_group(
+            x, genes, subcl.reset_index(drop=True),
+            n_trees=n_trees, top_gini=top_gini, top_combo=top_combo, beta=beta,
+        )
         used: set[str] = set()
         for cl in keep:
             r = group_res[cl]

@@ -95,8 +95,9 @@ Every influence on a label belongs to exactly one of three tiers; nothing silent
    `GATE_SCORE_R` (POC 0.9); both must trip, and the refusal reports both numbers.
    (Measured on 1619: overlap alone wrongly refused the uterine-SMC descent — 5/10
    shared genes but score r≈0.6, the scores discriminate fine.) The vote-share descent
-   threshold is the same species of rule; all three live as loud module-level constants
-   next to `DESCEND_AGREE`.
+   threshold is the same species of rule; all three are **named keyword parameters with
+   loud defaults** (`DESCEND_AGREE`, `GATE_OVERLAP`, `GATE_SCORE_R`) on the API functions
+   and CLI flags — overridable per call, never silently hard-coded.
 3. **Expert overrides, signed.** Whatever remains is domain knowledge in the overrides
    config, with mandatory justification, propagated into outputs. No anonymous curation.
    A signature means a *human domain expert*. An override proposed by an AI assistant
