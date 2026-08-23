@@ -34,7 +34,7 @@ Comprehensive benchmarks, other datasets, other ontologies: explicit non-goals f
 **Treeline performs no clustering anywhere.** The user's loop: cluster (their method) ->
 annotate per sample -> integrate -> recluster the latent (their method) -> annotate the
 joint -> colors at every step. Not in the public API: upstream QC/ambient correction,
-within-type reclustering (`--refine` remains an opt-in convenience), and the HTML report —
+within-type reclustering (deliberately unsupported — see Integration), and the HTML report —
 the report is a downstream *consumer* of these verbs (its natural views: one sample,
 samples side by side, integrated, integrated + relabels), kept in `apps/` for development
 and to be rebuilt against the stable API later. **Not treeline's job by default:** upstream QC and
@@ -191,12 +191,15 @@ After training, treeline emits the latent and stops; the user (POC: the driver) 
 it and resubmits, and the same vote runs on the joint clusters (marker scores are
 expression-derived, so re-annotation is not circular through the latent), then NS-Forest
 once on joint clusters — a shared
-cross-sample substate vocabulary. Then **within-class refinement (opt-in, `--refine`)**:
-for each coarse class with enough nuclei, per-class HVGs and a fresh per-class
-integration (scVI, batch=sample) on just those nuclei — within-type substructure hides
-in genes global HVG selection never keeps — subclustered and re-voted, NS-Forest per
-class; batch correction acts only within a type, so it cannot smear classes together.
-Off by default per the scope statement. Caveat stands (see design
+cross-sample substate vocabulary. **Within-class refinement is deliberately not
+provided.** The good version of the recipe (subset to a class -> class-specific HVGs,
+since within-type substructure hides in genes global HVG selection never keeps -> a
+fresh per-class integration -> recluster) is standard scanpy/scvi composition a user can
+run themselves; a prototype inside treeline mislabeled — the class was defined by the
+prior but the re-vote ran the full tree from the root, so weak subclusters stalled at
+`eukaryotic cell` inside an SMC panel. Constraining the vote to a class subtree is real
+machinery for a feature outside the scope statement, so it was removed rather than
+fixed. Caveat stands (see design
 decisions): joint clusters are label-influenced; downstream differential analysis on
 them inherits the supervision.
 

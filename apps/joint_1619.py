@@ -3,20 +3,18 @@
 The user-side half of the integration loop (SPECS scope: treeline emits the latent and
 performs no clustering). This driver plays the user: Leiden on obsm["X_treeline"] at
 three resolutions, then the joint object goes back through the same annotate verb.
---refine additionally runs the opt-in within-class refinement convenience.
 
-    .venv/bin/python apps/joint_1619.py [--refine]      (after apps/poc_1619.py)
+    .venv/bin/python apps/joint_1619.py      (after apps/poc_1619.py)
 """
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import scanpy as sc
 
 from treeline.annotate import annotate
-from treeline.scanvi import integrate, refine_classes
+from treeline.scanvi import integrate
 from treeline.tree import load
 from treeline.vote import load_overrides
 
@@ -44,9 +42,6 @@ def main() -> None:
         print(f"  {key}: {joint.obs[key].nunique()} clusters -> "
               f"{joint.obs[f'treeline_{key}'].nunique()} labels")
     joint.write_h5ad(OUT / "integrated_annotated.h5ad")
-
-    if "--refine" in sys.argv:
-        refine_classes(joint, dag, GENE_SETS, OUT)
     print("done")
 
 

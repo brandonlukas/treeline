@@ -10,19 +10,14 @@ supervision.
 `integrate` builds the joint object, trains, attaches the latent as
 `obsm["X_treeline"]`, and stops — treeline performs no clustering anywhere (SPECS
 scope). The user reclusters the latent and resubmits the joint through `annotate`;
-apps/joint_1619.py is the POC driver for that loop. `refine_classes` is the opt-in
-within-class convenience it exposes as --refine.
+apps/joint_1619.py is the POC driver for that loop.
 """
 
 from __future__ import annotations
 
-import json
-
 import anndata as ad
 import pandas as pd
 import scanpy as sc
-
-from treeline.annotate import annotate
 
 SUPERVISE_DEPTH = 2
 N_HVG = 2000
@@ -32,8 +27,6 @@ SCANVI_EPOCHS = 50
 # label pull vs mixing. Sample==condition here (one LM, one MM), so batch and disease
 # effects are unidentifiable — this value is a judgment call, not fittable (see SPECS).
 CLASSIFICATION_RATIO = 50.0
-REFINE_MIN = 800  # nuclei a coarse class needs before it gets its own integration round
-REFINE_RES = 1.0
 
 
 def consensus_labels(obs: pd.DataFrame) -> pd.Series:
@@ -76,37 +69,3 @@ def integrate(adatas: dict[str, "ad.AnnData"]) -> "ad.AnnData":
     )
     joint.obsm["X_treeline"] = ms.get_latent_representation()
     return joint
-
-
-def refine_classes(joint, dag: dict, gene_sets_csv, out_dir) -> None:
-    """Opt-in within-class refinement: per-class HVGs + a fresh per-class integration
-    (batch correction acts only inside a type), subcluster, re-vote, NS-Forest — one
-    annotated h5ad per class. `joint` must already be annotated (post joint-annotate)
-    with a counts layer and log-normalized X."""
-    import scvi
-
-    class_label = consensus_labels(joint.obs)
-    for label, n in class_label.value_counts().items():
-        if label == "Unknown" or n < REFINE_MIN:
-            continue
-        leaf = label.split(" > ")[-1]
-        print(f"refined · {leaf}: {n} nuclei")
-        sub = joint[(class_label == label).values].copy()
-        # seurat flavor on the log-normalized subset: seurat_v3's loess is numerically
-        # fragile on small within-class subsets; scvi still trains on the counts layer
-        sc.pp.highly_variable_genes(sub, n_top_genes=N_HVG, batch_key="sample")
-        subh = sub[:, sub.var["highly_variable"]].copy()
-        scvi.model.SCVI.setup_anndata(subh, layer="counts", batch_key="sample")
-        mr = scvi.model.SCVI(subh, n_latent=15)
-        mr.train(max_epochs=SCVI_EPOCHS)
-        sub.obsm["X_refined"] = mr.get_latent_representation()
-        sc.pp.neighbors(sub, use_rep="X_refined")
-        sc.tl.umap(sub)
-        key = f"leiden_{REFINE_RES}"
-        sc.tl.leiden(sub, resolution=REFINE_RES, key_added=key, flavor="igraph", n_iterations=2)
-        for c in [c for c in sub.obs.columns if c.startswith("treeline_")]:
-            del sub.obs[c]  # stale labels from the parent object
-        annotate(sub, dag, gene_sets_csv, [key])
-        for cl, d in json.loads(sub.uns["treeline"])["calls"][key].items():
-            print(f"  {cl}: {' > '.join(d['path']) or 'Unknown'}")
-        sub.write_h5ad(out_dir / f"refined__{leaf}_annotated.h5ad")
