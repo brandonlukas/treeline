@@ -6,17 +6,16 @@ requires-python = ">=3.11"
 dependencies = [
     "scanpy>=1.10",
     "anndata>=0.10",
-    "leidenalg",
     "igraph",
     "pandas",
     "numpy",
-    "pyarrow",
 ]
 
 [project.scripts]
 treeline = "treeline.cli:main"
 
 [project.optional-dependencies]
+integrate = ["scvi-tools"]
 dev = ["pytest", "ruff", "mypy"]
 
 [build-system]

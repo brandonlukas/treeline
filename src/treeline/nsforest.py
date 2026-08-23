@@ -12,10 +12,9 @@ one-vs-rest *within* each collapsed group, reimplemented on sklearn:
   6. all AND-combinations of the top candidates -> best F-beta (beta=0.5, precision-weighted)
 
 The chosen combination is the cluster's minimal marker set; the suffix is its most
-binary member. Computed per resolution, one-vs-rest against siblings only — the
-classification task a substate name actually has to win.
-
-    python -m treeline.nsforest results/poc assets 0.5 1.0 2.0
+binary member. Computed per clustering, one-vs-rest against siblings only — the
+classification task a substate name actually has to win. Called by `annotate`; call
+`suffixes_for` directly for the full set of knobs.
 
 # ponytail: 100 trees, top 15 by Gini, top 6 into the combination search — smaller than
 # the paper's defaults; raise if marker quality on bigger groups disappoints.
@@ -23,16 +22,12 @@ classification task a substate name actually has to win.
 
 from __future__ import annotations
 
-import json
 import re
-import sys
 from collections import defaultdict
 from itertools import combinations
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import scanpy as sc
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import fbeta_score
 from sklearn.tree import DecisionTreeClassifier
@@ -117,7 +112,7 @@ def suffixes_for(
         if call["path"]:
             by_path[tuple(call["path"])].append(cl)
     out: dict[str, dict] = {}
-    for path, group in by_path.items():
+    for group in by_path.values():
         counts = clusters.value_counts()
         keep = [c for c in group if counts.get(c, 0) >= min_cluster]
         if len(keep) < 2:
@@ -142,28 +137,3 @@ def suffixes_for(
             used.add(name)
             out[cl] = {"gene": name, **r}
     return out
-
-
-def main() -> None:
-    results, assets, res_list = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3:]
-    calls = json.loads((results / "calls.json").read_text())
-    suffixes: dict[str, dict[str, dict]] = {}
-    for sample, by_res in calls.items():
-        adata = sc.read_h5ad(assets / f"{sample}_gex.h5ad")
-        sc.pp.normalize_total(adata, target_sum=1e4)
-        sc.pp.log1p(adata)
-        df = pd.read_parquet(results / f"{sample}.parquet")
-        suffixes[sample] = {}
-        for res in res_list:
-            clusters = df[f"leiden_{res}"].astype(str)
-            clusters.index = adata.obs_names
-            suffixes[sample][res] = suffixes_for(adata, clusters, by_res[res])
-            print(f"{sample} res {res}: {len(suffixes[sample][res])} suffixed clusters")
-            for cl, e in sorted(suffixes[sample][res].items(), key=lambda kv: int(kv[0])):
-                path = by_res[res][cl]["path"]
-                print(f"  {cl}: {e['gene']}+ {path[-1]}  (markers {'+'.join(e['markers'])}, Fbeta {e['fbeta']})")
-    (results / "suffixes.json").write_text(json.dumps(suffixes, indent=1))
-
-
-if __name__ == "__main__":
-    main()

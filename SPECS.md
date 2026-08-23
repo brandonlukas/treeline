@@ -73,10 +73,11 @@ semi-supervise integration (scANVI-style).
 4. **Overrides config** (see the provenance contract below) — expert decisions only,
    every entry `{node, decision, justification, author, date}`, justification enforced
    by schema and carried verbatim into every output artifact. `decision` is a closed
-   vocabulary — `prune` (drop node + subtree from the candidate space), `stop` (cap
-   descent at this node), `relabel` (override a cluster's assigned path) — so overrides
-   stay domain knowledge, not an escape hatch; extending the vocabulary means editing
-   the schema, on purpose.
+   vocabulary — `prune` (drop node + subtree from the candidate space) and `stop` (cap
+   descent at this node); `relabel` (override a cluster's assigned path) is planned and
+   the schema rejects it until the vote implements it — so overrides stay domain
+   knowledge, not an escape hatch; extending the vocabulary means editing the schema,
+   on purpose.
 
 ## The provenance contract (core design principle)
 
@@ -288,7 +289,8 @@ helpers-first/`main()`-last in apps, public-first in `src/`.
 
 ## Dependencies
 
-scanpy, anndata, scvi-tools (scANVI), stdlib urllib for OLS4. No new frameworks; the
+scanpy, anndata, stdlib urllib for OLS4; scvi-tools (scANVI) as the `treeline[integrate]`
+extra so annotate-only users skip torch. No new frameworks; the
 slider report is static HTML + vanilla JS, no server. NS-Forest is reimplemented in
 `nsforest.py` on sklearn (already a scanpy dependency) following the v4.0 paper
 (Liu et al., BMC Methods 2024): Binary Score -> BinaryFirst pre-selection -> RF Gini ->

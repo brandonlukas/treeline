@@ -14,7 +14,15 @@ import dataclasses
 import json
 
 from treeline.nsforest import suffixes_for
-from treeline.vote import DESCEND_AGREE, GATE_OVERLAP, GATE_SCORE_R, N_MARKERS, assign_all, load_panels, score_nodes
+from treeline.vote import (
+    DESCEND_AGREE,
+    GATE_OVERLAP,
+    GATE_SCORE_R,
+    N_MARKERS,
+    assign_all,
+    load_panels,
+    score_nodes,
+)
 
 UNS_KEY = "treeline"
 

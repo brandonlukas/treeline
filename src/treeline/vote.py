@@ -97,13 +97,9 @@ def load_overrides(path) -> list[dict]:
         missing = {"node", "decision", "justification", "author", "date"} - e.keys()
         if missing:
             raise ValueError(f"override entry {e.get('node', '?')!r} missing {sorted(missing)}")
-        if e["decision"] not in ("stop", "prune", "relabel"):
+        if e["decision"] not in ("stop", "prune"):  # "relabel" joins when implemented
             raise ValueError(f"override decision {e['decision']!r} not in the closed vocabulary")
     return entries
-
-
-def _scored_desc(dag: dict, label: str, scored: set[str]) -> set[str]:
-    return descendants(dag, label) & scored
 
 
 def assign_cluster(
@@ -128,7 +124,7 @@ def assign_cluster(
         children = dag["nodes"][children[0]]["children"]
     while children:
         children = [c for c in children if c not in pruned]
-        cand = {c: _scored_desc(dag, c, scored) for c in children}
+        cand = {c: descendants(dag, c) & scored for c in children}
         cand = {c: d for c, d in cand.items() if d}
         if not cand:
             break

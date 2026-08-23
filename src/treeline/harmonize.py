@@ -9,13 +9,6 @@ tree, is the harmonized label space.
 from __future__ import annotations
 
 
-def truncate(path: list[str], depth: int) -> str:
-    """Cluster label at a display depth. Empty path -> Unknown."""
-    if not path:
-        return "Unknown"
-    return " > ".join(path[:depth])
-
-
 def observed_paths(calls: dict) -> list[tuple[str, ...]]:
     """Every distinct path across {sample: {res: {cluster: {'path': [...]}}}}."""
     seen: dict[tuple[str, ...], None] = {}

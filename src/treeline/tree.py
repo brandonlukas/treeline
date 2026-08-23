@@ -8,7 +8,7 @@ which auto-merges near-synonyms (myometrial cell folds into uterine smooth muscl
 
 Live API at derivation, frozen JSON at inference:
 
-    python -m treeline.tree <gene_sets.csv> <out.json>
+    treeline derive-tree <gene_sets.csv> <out.json>
 """
 
 from __future__ import annotations
@@ -160,7 +160,7 @@ def derive(set_names: list[str]) -> dict:
     roots = sorted(n for n in nodes if not parents[n])
     return {
         "source": "EBI OLS4, ontology=cl",
-        "fetched": date.today().isoformat(),
+        "fetched": date.today().isoformat(),  # noqa: DTZ011 — human-readable provenance date
         "derived_from_sets": set_names,
         "dropped_sets": dropped,
         "roots": roots,
@@ -184,15 +184,3 @@ def descendants(dag: dict, label: str) -> set[str]:
             out.add(n)
             stack += dag["nodes"][n]["children"]
     return out
-
-
-def main() -> None:
-    csv_path, out_path = sys.argv[1], sys.argv[2]
-    dag = derive(set_names_from_csv(csv_path))
-    Path(out_path).write_text(json.dumps(dag, indent=2))
-    multi = [n for n, d in dag["nodes"].items() if len(d["parents"]) > 1]
-    print(f"wrote {out_path}: {len(dag['nodes'])} nodes, roots={dag['roots']}, multi-parent={multi}")
-
-
-if __name__ == "__main__":
-    main()

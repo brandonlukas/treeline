@@ -47,7 +47,7 @@ def consensus_labels(obs: pd.DataFrame, supervise_depth: int = SUPERVISE_DEPTH) 
 
 
 def integrate(
-    adatas: dict[str, "ad.AnnData"],
+    adatas: dict[str, ad.AnnData],
     *,
     supervise_depth: int = SUPERVISE_DEPTH,
     n_hvg: int = N_HVG,
@@ -55,7 +55,7 @@ def integrate(
     scvi_epochs: int = SCVI_EPOCHS,
     scanvi_epochs: int = SCANVI_EPOCHS,
     classification_ratio: float = CLASSIFICATION_RATIO,
-) -> "ad.AnnData":
+) -> ad.AnnData:
     """Annotated AnnDatas -> one joint AnnData with the scANVI latent in
     obsm["X_treeline"] and the consensus prior in obs["cl_prior"]. No clustering."""
     import scvi

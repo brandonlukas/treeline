@@ -13,19 +13,12 @@ from __future__ import annotations
 
 import colorsys
 
+from treeline.harmonize import path_tree
+
 UNKNOWN = "#9a9a9a"
 SATURATION = 0.58
 L_START, L_STEP, L_MIN = 0.66, 0.08, 0.30  # lightness darkens with path depth
 SHRINK = 0.4  # below the first branching, children stay within this fraction of the parent's arc
-
-
-def _tree_of(paths: list[tuple[str, ...]]) -> dict:
-    root: dict = {}
-    for p in paths:
-        node = root
-        for label in p:
-            node = node.setdefault(label, {})
-    return root
 
 
 def _leaves(node: dict) -> int:
@@ -34,7 +27,7 @@ def _leaves(node: dict) -> int:
 
 def _hex(h: float, lightness: float) -> str:
     r, g, b = colorsys.hls_to_rgb((h % 360) / 360, lightness, SATURATION)
-    return "#{:02x}{:02x}{:02x}".format(int(r * 255), int(g * 255), int(b * 255))
+    return f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
 
 
 def palette(*annotation_dicts: dict) -> dict[str, str]:
@@ -67,7 +60,7 @@ def _substate_hex(parent_hex: str, i: int, k: int) -> str:
     h, _, _ = colorsys.rgb_to_hls(r, g, b)
     t = i / (k - 1) if k > 1 else 0.5
     r, g, b = colorsys.hls_to_rgb(h, 0.64 - 0.40 * t, 0.42 + 0.38 * t)
-    return "#{:02x}{:02x}{:02x}".format(int(r * 255), int(g * 255), int(b * 255))
+    return f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
 
 
 def assign(paths: list[tuple[str, ...]]) -> dict[str, str]:
@@ -75,7 +68,7 @@ def assign(paths: list[tuple[str, ...]]) -> dict[str, str]:
     the first branching; below it children keep close to the parent's hue, and lightness
     darkens one step per level — subclusters of one type read as shades of one hue."""
     out: dict[str, str] = {"Unknown": UNKNOWN}
-    tree = _tree_of([p for p in paths if p])
+    tree = path_tree([p for p in paths if p])
 
     def walk(node: dict, prefix: tuple[str, ...], mid: float, width: float, spread: int) -> None:
         total = sum(_leaves(c) for c in node.values()) or 1
