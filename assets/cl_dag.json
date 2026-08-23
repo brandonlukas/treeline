@@ -1,0 +1,372 @@
+{
+  "source": "EBI OLS4, ontology=cl",
+  "fetched": "2026-08-23",
+  "derived_from_sets": [
+    "stromal cell of ovary",
+    "supporting cell",
+    "epithelial cell",
+    "ciliated cell",
+    "endothelial cell of uterus",
+    "myeloid cell",
+    "uterine smooth muscle cell",
+    "fibroblast",
+    "glandular epithelial cell",
+    "T cell",
+    "macrophage",
+    "pericyte",
+    "epithelial cell of uterus",
+    "endothelial cell",
+    "ciliated epithelial cell",
+    "endothelial cell of lymphatic vessel",
+    "myometrial cell",
+    "mature NK T cell",
+    "vascular associated smooth muscle cell",
+    "smooth muscle cell",
+    "stromal cell",
+    "stratified epithelial cell",
+    "basal cell",
+    "kidney loop of Henle epithelial cell"
+  ],
+  "dropped_sets": [],
+  "roots": [
+    "cell"
+  ],
+  "nodes": {
+    "basal cell": {
+      "sets": [
+        "basal cell"
+      ],
+      "parents": [
+        "eukaryotic cell"
+      ],
+      "children": [],
+      "cl_id": "CL:0000646"
+    },
+    "cell": {
+      "sets": [],
+      "parents": [],
+      "children": [
+        "contractile cell",
+        "eukaryotic cell",
+        "hematopoietic cell",
+        "perivascular cell",
+        "supporting cell"
+      ],
+      "cl_id": "CL:0000000"
+    },
+    "ciliated cell": {
+      "sets": [
+        "ciliated cell"
+      ],
+      "parents": [
+        "eukaryotic cell"
+      ],
+      "children": [
+        "ciliated epithelial cell"
+      ],
+      "cl_id": "CL:0000064"
+    },
+    "ciliated epithelial cell": {
+      "sets": [
+        "ciliated epithelial cell"
+      ],
+      "parents": [
+        "ciliated cell",
+        "epithelial cell"
+      ],
+      "children": [],
+      "cl_id": "CL:0000067"
+    },
+    "connective tissue cell": {
+      "sets": [],
+      "parents": [
+        "eukaryotic cell"
+      ],
+      "children": [
+        "pericyte",
+        "stromal cell"
+      ],
+      "cl_id": "CL:0002320"
+    },
+    "contractile cell": {
+      "sets": [],
+      "parents": [
+        "cell"
+      ],
+      "children": [
+        "pericyte",
+        "smooth muscle cell"
+      ],
+      "cl_id": "CL:0000183"
+    },
+    "endothelial cell": {
+      "sets": [
+        "endothelial cell"
+      ],
+      "parents": [
+        "eukaryotic cell"
+      ],
+      "children": [
+        "endothelial cell of lymphatic vessel",
+        "endothelial cell of uterus"
+      ],
+      "cl_id": "CL:0000115"
+    },
+    "endothelial cell of lymphatic vessel": {
+      "sets": [
+        "endothelial cell of lymphatic vessel"
+      ],
+      "parents": [
+        "endothelial cell"
+      ],
+      "children": [],
+      "cl_id": "CL:0002138"
+    },
+    "endothelial cell of uterus": {
+      "sets": [
+        "endothelial cell of uterus"
+      ],
+      "parents": [
+        "endothelial cell"
+      ],
+      "children": [],
+      "cl_id": "CL:0009095"
+    },
+    "epithelial cell": {
+      "sets": [
+        "epithelial cell"
+      ],
+      "parents": [
+        "eukaryotic cell"
+      ],
+      "children": [
+        "ciliated epithelial cell",
+        "epithelial cell of uterus",
+        "glandular epithelial cell",
+        "kidney loop of henle epithelial cell",
+        "stratified epithelial cell"
+      ],
+      "cl_id": "CL:0000066"
+    },
+    "epithelial cell of uterus": {
+      "sets": [
+        "epithelial cell of uterus"
+      ],
+      "parents": [
+        "epithelial cell"
+      ],
+      "children": [],
+      "cl_id": "CL:0002149"
+    },
+    "eukaryotic cell": {
+      "sets": [],
+      "parents": [
+        "cell"
+      ],
+      "children": [
+        "basal cell",
+        "ciliated cell",
+        "connective tissue cell",
+        "endothelial cell",
+        "epithelial cell",
+        "mononuclear leukocyte",
+        "myeloid cell",
+        "smooth muscle cell"
+      ],
+      "cl_id": "CL:0000255"
+    },
+    "fibroblast": {
+      "sets": [
+        "fibroblast"
+      ],
+      "parents": [
+        "stromal cell"
+      ],
+      "children": [],
+      "cl_id": "CL:0000057"
+    },
+    "glandular epithelial cell": {
+      "sets": [
+        "glandular epithelial cell"
+      ],
+      "parents": [
+        "epithelial cell"
+      ],
+      "children": [],
+      "cl_id": "CL:0000150"
+    },
+    "hematopoietic cell": {
+      "sets": [],
+      "parents": [
+        "cell"
+      ],
+      "children": [
+        "mononuclear leukocyte",
+        "myeloid cell"
+      ],
+      "cl_id": "CL:0000988"
+    },
+    "kidney loop of henle epithelial cell": {
+      "sets": [
+        "kidney loop of Henle epithelial cell"
+      ],
+      "parents": [
+        "epithelial cell"
+      ],
+      "children": [],
+      "cl_id": "CL:1000909"
+    },
+    "macrophage": {
+      "sets": [
+        "macrophage"
+      ],
+      "parents": [
+        "mononuclear leukocyte",
+        "myeloid cell"
+      ],
+      "children": [],
+      "cl_id": "CL:0000235"
+    },
+    "mononuclear leukocyte": {
+      "sets": [],
+      "parents": [
+        "eukaryotic cell",
+        "hematopoietic cell"
+      ],
+      "children": [
+        "macrophage",
+        "t cell"
+      ],
+      "cl_id": "CL:0000842"
+    },
+    "myeloid cell": {
+      "sets": [
+        "myeloid cell"
+      ],
+      "parents": [
+        "eukaryotic cell",
+        "hematopoietic cell"
+      ],
+      "children": [
+        "macrophage"
+      ],
+      "cl_id": "CL:0000763"
+    },
+    "pericyte": {
+      "sets": [
+        "pericyte"
+      ],
+      "parents": [
+        "connective tissue cell",
+        "contractile cell",
+        "perivascular cell",
+        "supporting cell"
+      ],
+      "children": [],
+      "cl_id": "CL:0000669"
+    },
+    "perivascular cell": {
+      "sets": [],
+      "parents": [
+        "cell"
+      ],
+      "children": [
+        "pericyte",
+        "vascular associated smooth muscle cell"
+      ],
+      "cl_id": "CL:4033054"
+    },
+    "smooth muscle cell": {
+      "sets": [
+        "smooth muscle cell"
+      ],
+      "parents": [
+        "contractile cell",
+        "eukaryotic cell"
+      ],
+      "children": [
+        "uterine smooth muscle cell",
+        "vascular associated smooth muscle cell"
+      ],
+      "cl_id": "CL:0000192"
+    },
+    "stratified epithelial cell": {
+      "sets": [
+        "stratified epithelial cell"
+      ],
+      "parents": [
+        "epithelial cell"
+      ],
+      "children": [],
+      "cl_id": "CL:0000079"
+    },
+    "stromal cell": {
+      "sets": [
+        "stromal cell"
+      ],
+      "parents": [
+        "connective tissue cell"
+      ],
+      "children": [
+        "fibroblast",
+        "stromal cell of ovary"
+      ],
+      "cl_id": "CL:0000499"
+    },
+    "stromal cell of ovary": {
+      "sets": [
+        "stromal cell of ovary"
+      ],
+      "parents": [
+        "stromal cell"
+      ],
+      "children": [],
+      "cl_id": "CL:0002132"
+    },
+    "supporting cell": {
+      "sets": [
+        "supporting cell"
+      ],
+      "parents": [
+        "cell"
+      ],
+      "children": [
+        "pericyte"
+      ],
+      "cl_id": "CL:0000630"
+    },
+    "t cell": {
+      "sets": [
+        "T cell",
+        "mature NK T cell"
+      ],
+      "parents": [
+        "mononuclear leukocyte"
+      ],
+      "children": [],
+      "cl_id": "CL:0000084"
+    },
+    "uterine smooth muscle cell": {
+      "sets": [
+        "uterine smooth muscle cell",
+        "myometrial cell"
+      ],
+      "parents": [
+        "smooth muscle cell"
+      ],
+      "children": [],
+      "cl_id": "CL:0002601"
+    },
+    "vascular associated smooth muscle cell": {
+      "sets": [
+        "vascular associated smooth muscle cell"
+      ],
+      "parents": [
+        "perivascular cell",
+        "smooth muscle cell"
+      ],
+      "children": [],
+      "cl_id": "CL:0000359"
+    }
+  }
+}

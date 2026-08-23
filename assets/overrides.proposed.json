@@ -1,0 +1,9 @@
+[
+  {
+    "node": "endothelial cell",
+    "decision": "stop",
+    "justification": "PROVISIONAL — proposed by Claude (AI), NOT yet reviewed by a domain expert. Measured facts (verifiable from assets/): (1) the 'endothelial cell of lymphatic vessel' gene set contains none of PROX1/CCL21/PDPN/FLT4/LYVE1 — no gene set in the CSV does; (2) that set wins the EC descent decisively on score alone (share 0.84 on 1619), overlap 4/10 and score r 0.3-0.5 vs its sibling — no automated score-side rule distinguishes this from a legitimate descent; (3) exactly one EC subcluster (1619MM res-2.0 cl19) expresses CCL21 in 90%, PROX1 in 47%, FLT4 in 54% of nuclei, vs <=5% in every other EC cluster in both samples. AI-asserted premise a biologist should confirm or reject: PROX1/CCL21/PDPN/FLT4 are the defining lymphatic-EC markers, so a panel without them cannot support the lymphatic label and descending would mislabel all EC as lymphatic. Until reviewed, the descent is stopped and the lymphatic population is surfaced data-side as its NS-Forest substate (CCL21+ endothelial cell, Fbeta 0.90).",
+    "author": "Claude (AI assistant), provisional — awaiting expert sign-off; descends from matchafinn-apps derive_cl_tree.py NO_DESCEND (also AI-assisted, unreviewed)",
+    "date": "2026-08-23"
+  }
+]

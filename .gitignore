@@ -1,0 +1,13 @@
+# large dev/test data — assets/README.md is the committed record (regeneration steps there)
+assets/*.h5ad
+
+# generated outputs
+results/
+
+# environment / caches
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
