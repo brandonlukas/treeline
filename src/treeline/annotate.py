@@ -27,6 +27,18 @@ from treeline.vote import (
 UNS_KEY = "treeline"
 
 
+def _check_lognorm(adata) -> None:
+    """Refuse raw counts loudly: score_genes on counts produces garbage scores and
+    therefore confidently wrong labels — the exact failure treeline exists to prevent."""
+    mx = adata.X.max()
+    if mx > 50:
+        raise ValueError(
+            f"adata.X max is {mx:.0f} — this looks like raw counts, not log-normalized "
+            "expression. annotate scores genes on log-normalized X: keep counts in "
+            "layers['counts'] (integrate needs them), then sc.pp.normalize_total + sc.pp.log1p."
+        )
+
+
 def annotate(
     adata,
     dag: dict,
@@ -45,6 +57,10 @@ def annotate(
     The vote's knobs are keyword parameters with the loud defaults; NS-Forest's own
     knobs (trees, combination size, beta, ...) are on `nsforest.suffixes_for` — call it
     directly if you need them."""
+    missing = [k for k in cluster_keys if k not in adata.obs.columns]
+    if missing:
+        raise ValueError(f"cluster keys not in .obs: {missing}; available columns: {list(adata.obs.columns)}")
+    _check_lognorm(adata)
     panels = load_panels(gene_sets_csv, dag, n_markers=n_markers)
     score_nodes(adata, panels)
     calls: dict[str, dict] = {}

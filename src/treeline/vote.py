@@ -41,6 +41,13 @@ N_MARKERS = 10  # top genes taken per gene set
 def load_panels(csv_path, dag: dict, n_markers: int = N_MARKERS) -> dict[str, list[str]]:
     """Node label -> marker symbols; a node's sets merge (union, order kept)."""
     df = pd.read_csv(csv_path)
+    missing = {"Gene Set Name", "Gene Symbol"} - set(df.columns)
+    if missing:
+        raise ValueError(
+            f"gene-set table {csv_path} is missing column(s) {sorted(missing)}; found {list(df.columns)}. "
+            "Expected a CellGuide-style CSV: 'Gene Set Name' (named on each set's first row, "
+            "blank rows fill down) and 'Gene Symbol' (one gene per row)."
+        )
     df["Gene Set Name"] = df["Gene Set Name"].ffill().str.removesuffix(" - marker genes")
     by_set = {name: g["Gene Symbol"].head(n_markers).tolist() for name, g in df.groupby("Gene Set Name", sort=False)}
     panels = {}

@@ -16,6 +16,7 @@ apps/joint_1619.py is the POC driver for that loop.
 from __future__ import annotations
 
 import anndata as ad
+import numpy as np
 import pandas as pd
 import scanpy as sc
 
@@ -46,6 +47,25 @@ def consensus_labels(obs: pd.DataFrame, supervise_depth: int = SUPERVISE_DEPTH) 
     return label.where(df.nunique(axis=1) == 1, "Unknown")
 
 
+def _check_annotated_counts(name: str, a: ad.AnnData) -> None:
+    """Refuse un-annotated or counts-less inputs loudly, before any training time is spent."""
+    if "treeline" not in a.uns:
+        raise ValueError(f"{name!r} is not annotated (no .uns['treeline']) — run treeline annotate on it first")
+    if not any(c.startswith("treeline_") for c in a.obs.columns):
+        raise ValueError(f"{name!r} has no treeline_* label columns in .obs — re-run annotate")
+    if "counts" not in a.layers:
+        raise ValueError(
+            f"{name!r} has no layers['counts'] — integrate trains on raw counts; stash them "
+            "before normalizing (adata.layers['counts'] = adata.X.copy())"
+        )
+    from scipy import sparse
+
+    x = a.layers["counts"]
+    sample = x.data[:1000] if sparse.issparse(x) else np.asarray(x).ravel()[:1000]
+    if (sample < 0).any() or (sample % 1 != 0).any():
+        raise ValueError(f"{name!r} layers['counts'] has negative or fractional values — not raw counts")
+
+
 def integrate(
     adatas: dict[str, ad.AnnData],
     *,
@@ -60,6 +80,10 @@ def integrate(
     obsm["X_treeline"] and the consensus prior in obs["cl_prior"]. No clustering."""
     import scvi
 
+    if len(adatas) < 2:
+        raise ValueError(f"integrate needs two or more annotated samples, got {len(adatas)}")
+    for name, a in adatas.items():
+        _check_annotated_counts(name, a)
     joint = ad.concat(adatas, label="sample", index_unique="-")
     joint.obs["cl_prior"] = consensus_labels(joint.obs, supervise_depth).values
     print("consensus prior:", joint.obs["cl_prior"].value_counts().to_dict())

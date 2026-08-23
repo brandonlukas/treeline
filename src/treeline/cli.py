@@ -5,6 +5,7 @@
         --clusters leiden_0.5 leiden_1.0 [--overrides overrides.json] -o annotated.h5ad
     treeline integrate a_annotated.h5ad b_annotated.h5ad -o joint.h5ad
     treeline colors annotated.h5ad [more.h5ad ...] -o palette.json
+    treeline summary annotated.h5ad
 
 `annotate` expects log-normalized X and cluster labels already in .obs (treeline
 performs no clustering). `integrate` expects annotated h5ads with a counts layer and
@@ -51,6 +52,9 @@ def main() -> None:
     c = sub.add_parser("colors", help="annotated h5ads -> hierarchical label palette (JSON)")
     c.add_argument("h5ads", nargs="+")
     c.add_argument("-o", "--out", required=True)
+
+    m = sub.add_parser("summary", help="print an annotated h5ad's labels, per clustering")
+    m.add_argument("h5ad")
 
     args = p.parse_args()
 
@@ -99,6 +103,28 @@ def main() -> None:
         anns = [annotations(sc.read_h5ad(f)) for f in args.h5ads]
         Path(args.out).write_text(json.dumps(palette(*anns), indent=1))
         print(f"wrote {args.out}")
+
+    elif args.cmd == "summary":
+        import scanpy as sc
+
+        from treeline.annotate import annotations
+
+        a = sc.read_h5ad(args.h5ad, backed="r")  # obs + uns only; X stays on disk
+        ann = annotations(a)
+        for key in ann["cluster_keys"]:
+            sizes = a.obs[key].astype(str).value_counts()
+            calls = ann["calls"][key]
+            print(f"\n{key} — {len(calls)} clusters")
+            for cl in sorted(calls, key=lambda c: -sizes.get(c, 0)):
+                c = calls[cl]
+                chain = " > ".join(f"{lv['node']} {lv['share'] * 100:.0f}%" for lv in c["levels"]) or "Unknown"
+                sfx = ann["suffixes"].get(key, {}).get(cl)
+                extra = f"  [{sfx['gene']}+ Fbeta {sfx['fbeta']}]" if sfx else ""
+                if c["refused"]:
+                    extra += f"\n{'':>13}gate: {c['refused']}"
+                if c["overridden"]:
+                    extra += f"\n{'':>13}override: {c['overridden']}"
+                print(f"  {cl:>3} {sizes.get(cl, 0):>7,}  {chain}{extra}")
 
 
 if __name__ == "__main__":
