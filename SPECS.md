@@ -1,4 +1,4 @@
-# treeline — technical specification (seed)
+# treeline — technical specification
 
 *The treeline is the elevation past which conditions stop supporting growth. This tool
 descends the Cell Ontology only as far as the evidence supports, then stops.*
@@ -10,8 +10,9 @@ earned level by level, with a slider from coarse to fine. Data-driven suffixes (
 minimal markers) name what grows *above* the treeline — substates the ontology has no
 term for yet.
 
-Status: **proof of concept**. Target: make it work on the one dataset in `assets/`.
-Comprehensive benchmarks, other datasets, other ontologies: explicit non-goals for now.
+Status: **proof of concept, built** — the acceptance test below passes on the dataset in
+`assets/` (modulo the documented endothelial deviation, known-hard #5). Comprehensive
+benchmarks, other datasets, other ontologies: non-goals until v2 (see v2 directions).
 
 ## Scope: one prep step, three capabilities
 
@@ -33,14 +34,10 @@ Comprehensive benchmarks, other datasets, other ontologies: explicit non-goals f
 
 **Treeline performs no clustering anywhere.** The user's loop: cluster (their method) ->
 annotate per sample -> integrate -> recluster the latent (their method) -> annotate the
-joint -> colors at every step. Not in the public API: upstream QC/ambient correction,
-within-type reclustering (deliberately unsupported — see Integration), and the HTML report —
-the report is a downstream *consumer* of these verbs (its natural views: one sample,
-samples side by side, integrated, integrated + relabels), kept in `apps/` for development
-and to be rebuilt against the stable API later. **Not treeline's job by default:** upstream QC and
-ambient correction, per-sample clustering, and within-cell-type reclustering — subtype
-discovery beyond the supplied clusterings is the user's discretion (`--refine` ships as
-an opt-in convenience because the latent and labels are already in hand).
+joint -> colors at every step. Outside the API: upstream QC/ambient correction,
+within-type reclustering (deliberately unsupported — see Integration), and the HTML
+report — a downstream *consumer* of these verbs kept in `apps/` (its natural views: one
+sample, samples side by side, integrated, integrated + relabels).
 
 ## Why (the gap)
 
@@ -60,7 +57,7 @@ semi-supervise integration (scANVI-style).
 1. **Per-sample AnnData** (`.h5ad`), ambient-corrected counts, QC'd, with one or more
    categorical `.obs` columns naming clusterings. Clustering is upstream, like QC:
    treeline is agnostic to the algorithm — the vote consumes cluster assignments and
-   nothing else. (The POC driver runs its own Leiden at two resolutions because the
+   nothing else. (The POC driver runs its own Leiden at three resolutions because the
    assets h5ads ship unclustered; that is the driver's business, not the tool's
    contract.)
 2. **Gene set table** (CSV), user-supplied at inference time: gene sets labeled with CL
@@ -115,26 +112,26 @@ domain knowledge. Fixing both is a primary goal of the POC, not a v2 nicety.
 ## Pipeline
 
 ```
-per-sample AnnData ─┬─> user-supplied clusterings from .obs (any algorithm; the POC
-                    │   driver adds Leiden at R=2 resolutions, e.g. 0.5 / 2.0)
-gene sets + tree ───┴─> per-cluster hierarchical vote  ──> multi-level labels per
-                        (subtree-max scores, descend        (sample, resolution, cluster)
-                         while vote ≥ threshold)                    │
-                                                                    v
-                        cross-sample harmonization: CL terms ARE the shared vocabulary —
-                        per-sample cluster IDs never need to match, their paths do
-                                                                    │
-                                                                    v
-                        (optional) one scANVI round: coarse labels as semi-supervision,
-                        "Unknown" for below-threshold clusters ──> integrated latent
-                                                                    │
-                                                                    v
-                        (optional) NS-Forest minimal markers per subcluster within a
-                        coarse label ──> "{gene}+ <coarse label>" suffixes
-                                                                    │
-                                                                    v
-                        static HTML report: the slider (coarse -> fine), per-level labels,
-                        agreements, DE evidence, sample composition per cluster
+per-sample AnnData (user-clustered: >=1 categorical .obs clusterings)
+        │
+        v
+annotate ── score every DAG node's gene set, per-cluster hierarchical vote
+            (subtree-max, gated descent) -> multi-level labels per clustering;
+            NS-Forest {gene}+ substates where clusters collapse under one label;
+            everything written into .uns["treeline"] + .obs — self-contained h5ad.
+            Cross-sample harmonization is free: CL paths ARE the shared vocabulary,
+            per-sample cluster IDs never need to match.
+        │
+        v
+integrate ─ (>=2 annotated samples) scANVI on the tree-cut consensus prior
+            -> joint latent in obsm["X_treeline"]; treeline stops here
+        │
+        v
+user reclusters the latent (their method) -> annotate the joint (same verb, same rules)
+        │
+        v
+colors + report (apps/): the slider (coarse -> fine), per-level agreement,
+marker evidence, the label tree, substates above the treeline
 ```
 
 ### The vote (validated in matchafinn-apps `apps/fig4_scatac/04_annotate.py`)
@@ -166,44 +163,38 @@ label.
 scANVI's label head is a flat categorical — ontology-blind, so it would separate
 `fibroblast` from `stromal cell of ovary` as hard as from `uterine smooth muscle cell`.
 The tree fixes this at the input: supervise with descent paths **truncated at
-`SUPERVISE_DEPTH`** (POC: 2, taken from the fine clustering), where sibling labels are
-as ontologically parallel as CL gets and uncertain deep splits collapse into their
-common parent (fibroblast and stromal-of-ovary both become `connective tissue cell`).
-Clusters stalled above the cut are `Unknown` — scANVI's native unlabeled class.
-Tree-distance-weighted label losses are v2 research. NS-Forest suffixes are **never**
+`SUPERVISE_DEPTH`** (POC: 2), where sibling labels are as ontologically parallel as CL
+gets and uncertain deep splits collapse into their common parent (fibroblast and
+stromal-of-ovary both become `connective tissue cell`). NS-Forest suffixes are **never**
 supervision: they are artifacts of one clustering, and a flat classifier would carve
 the latent along per-sample Leiden boundaries.
 
 **Labels are a prior, not truth.** scANVI pins labeled cells to their label; treeline
 softens this with a **multi-resolution consensus**: a nucleus is supervised only when
-its depth-cut label agrees across all clustering resolutions where it resolves;
-nuclei that flip between classes get `Unknown` (scANVI's let-the-data-decide class),
-and clusters that stall at one resolution inherit their consensus from the others.
-Prior strength = cross-resolution agreement. A true soft-label ELBO (per-nucleus label
-distributions the model can overrule) is v2 research.
+its depth-cut label agrees across every supplied clustering that resolves; nuclei that
+flip between classes get `Unknown` (scANVI's let-the-data-decide class), and clusters
+that stall in one clustering inherit their consensus from the others. Prior strength =
+cross-resolution agreement. The true soft-label version is v2 direction #1.
 
 **Integration strength is a chosen prior, not a fittable parameter, on this data.**
 Sample ≡ condition here (one LM, one MM), so batch effect and disease effect are the
 same axis — unidentifiable. `CLASSIFICATION_RATIO` is the exposed knob (label pull vs
-mixing); with n=1 per condition its value is a judgment call. More patients
-(batch=patient, condition=tissue) make it identifiable; partial within-type mixing may
-be real disease states and is not, by itself, a failure.
+mixing); with n=1 per condition its value is a judgment call, and partial within-type
+mixing may be real disease states, not a failure. Cohorts fix this — v2 direction #2.
 
 After training, treeline emits the latent and stops; the user (POC: the driver) clusters
 it and resubmits, and the same vote runs on the joint clusters (marker scores are
-expression-derived, so re-annotation is not circular through the latent), then NS-Forest
-once on joint clusters — a shared
-cross-sample substate vocabulary. **Within-class refinement is deliberately not
-provided.** The good version of the recipe (subset to a class -> class-specific HVGs,
-since within-type substructure hides in genes global HVG selection never keeps -> a
-fresh per-class integration -> recluster) is standard scanpy/scvi composition a user can
-run themselves; a prototype inside treeline mislabeled — the class was defined by the
-prior but the re-vote ran the full tree from the root, so weak subclusters stalled at
-`eukaryotic cell` inside an SMC panel. Constraining the vote to a class subtree is real
-machinery for a feature outside the scope statement, so it was removed rather than
-fixed. Caveat stands (see design
-decisions): joint clusters are label-influenced; downstream differential analysis on
-them inherits the supervision.
+expression-derived, so re-annotation is not circular through the latent) — a shared
+cross-sample substate vocabulary falls out. **Within-class refinement is deliberately
+not provided.** The recipe (subset to a class -> class-specific HVGs, since within-type
+substructure hides in genes global HVG selection never keeps -> fresh per-class
+integration -> recluster) is standard scanpy/scvi composition a user runs themselves. A
+prototype inside treeline mislabeled — the class was defined by the prior but the
+re-vote ran the full tree from the root, so weak subclusters stalled at `eukaryotic
+cell` inside an SMC panel; constraining the vote to a class subtree is real machinery
+for a feature outside scope, so it was removed rather than fixed. Caveat stands (see
+design decisions): joint clusters are label-influenced; downstream differential
+analysis on them inherits the supervision.
 
 ### Structure derivation (prototype: `derive_cl_tree.py` in matchafinn-apps — supersede it)
 
@@ -232,14 +223,16 @@ handles them. The frozen JSON records the DAG, the OLS4 fetch date, and nothing 
 
 ## Known-hard problems (the actual research content)
 
-1. **Resolutions don't nest.** Clusterings at two resolutions (Leiden or otherwise)
-   are not a hierarchy (clusters
-   split AND merge). POC: present resolutions independently, no fake nesting. v2 options:
-   over-cluster once and merge upward; cluster-the-clusters dendrogram.
+1. **Resolutions don't nest.** Clusterings at different resolutions (Leiden or
+   otherwise) are not a hierarchy — clusters split AND merge. POC: present them
+   independently, no fake nesting; the consensus prior turns the disagreement into
+   information (agreement = supervision strength). v2 options: over-cluster once and
+   merge upward; cluster-the-clusters dendrogram.
 2. **Cross-sample harmonization** beyond exact path match (partial-depth matches, one
    sample resolving deeper than another). POC: group by longest common path prefix.
-3. **NS-Forest cost per slider position** — markers are per-clustering. POC: compute at
-   the fine resolution only, lazily.
+3. **NS-Forest cost per slider position** — markers are per-clustering. POC: computed
+   for every supplied clustering (fine at this scale); lazy/cached computation matters
+   at atlas scale.
 4. **Displaying a DAG on a tree slider** — a multi-parent node (pericyte) appears under
    more than one parent. POC: allow the duplication in the report and mark it; do not
    fake a tree.
@@ -267,11 +260,31 @@ met only if the proposed override is expert-signed or the input gains a real lym
 panel; until then the tool honestly descends, and that deviation is expected, not a bug.
 
 Secondary smoke checks (not evidence for the bet — the vote is; these just prove the
-optional stages wire up): scANVI round runs; NS-Forest emits `{gene}+` suffixes for SMC
-subclusters; HTML report renders both resolutions. The core test passing with the smoke
-checks unbuilt is still a successful POC.
+other stages wire up): scANVI round runs; NS-Forest emits `{gene}+` suffixes for SMC
+subclusters; HTML report renders all resolutions. Status: core test and smoke checks
+all pass (the substate naming even rediscovered the lymphatic population data-side:
+`CCL21+ endothelial cell`, F-beta 0.89).
 
-## Repo layout (proposed)
+## v2 directions
+
+1. **Labels as a true Bayesian prior.** The consensus filter is a hard gate — a nucleus
+   is either supervised or `Unknown`. The soft version: per-nucleus label
+   *distributions* (weighted by vote share and cross-resolution agreement) that the
+   ELBO can overrule, plus tree-distance-weighted label losses so ontologically close
+   labels cost less to confuse than distant ones. A custom scvi-tools training plan —
+   real research code.
+2. **Multi-patient, health/disease integration.** With a cohort, batch=patient and
+   condition=tissue/disease become separate axes: batch correction becomes
+   identifiable (dissolving the sample≡condition confound above),
+   `CLASSIFICATION_RATIO` becomes fittable rather than chosen, and disease-specific
+   states are preserved deliberately (condition as a modeled covariate, never a batch
+   to be removed).
+
+Smaller v2 experiments stay flagged where they arise: mean-/size-corrected subtree-max
+(design decisions), resolution nesting (known-hard #1), automated generic-restatement
+detection (known-hard #5), the `relabel` override decision (inputs #4).
+
+## Repo layout
 
 ```
 treeline/
