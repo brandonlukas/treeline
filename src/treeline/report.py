@@ -157,11 +157,14 @@ main { padding:14px 0 0; min-width:0; }
 canvas { width:100%; height:auto; display:block; background:var(--surface);
   border:1px solid var(--line); cursor:crosshair; }
 
-/* data tables: hairlines and air, no boxes */
-section.tbl { margin-top:48px; }
-.secrule { border-top:1px solid var(--ink); padding-top:12px;
-  display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:4px 16px; }
+/* data tables: hairlines and air, no boxes; collapsed by default */
+details.tblbox { margin-top:40px; border-top:1px solid var(--ink); padding-top:12px; }
+details.tblbox > summary { display:flex; justify-content:space-between; align-items:baseline;
+  flex-wrap:wrap; gap:4px 16px; cursor:pointer; list-style:none; }
+details.tblbox > summary::-webkit-details-marker { display:none; }
 .secname { font-size:1.05rem; font-weight:800; }
+.secname::before { content:"▸  "; color:var(--muted); font-size:0.8em; }
+details[open] > summary .secname::before { content:"▾  "; }
 .secmeta { color:var(--muted); font-size:0.78rem; font-variant-numeric:tabular-nums; }
 table { border-collapse:collapse; width:100%; font-size:0.86rem; margin-top:10px; }
 th { text-align:left; font-size:0.64rem; letter-spacing:0.12em; text-transform:uppercase;
@@ -413,7 +416,7 @@ function renderBanner() {
   b.innerHTML = (refs ? `<span id="jumpRef">⛔ ${refs} gate refusal${refs>1?"s":""}</span>` : "") +
     (ovs ? `<span class="ov" id="jumpOv">✍ ${ovs} signed override${ovs>1?"s":""}</span>` : "");
   const jump = cls => { const el = document.querySelector("#tables ." + cls);
-    if (el) { el.scrollIntoView({behavior:"smooth", block:"center"}); } };
+    if (el) reveal(el); };
   const jr = document.getElementById("jumpRef"); if (jr) jr.onclick = () => jump("refused");
   const jo = document.getElementById("jumpOv"); if (jo) jo.onclick = () => jump("override");
 }
@@ -521,14 +524,28 @@ function renderTables() {
     });
     const filt = pin ? ` · ${shown} shown (pinned)` : "";
     const total = S.x.length.toLocaleString();
-    const sec = document.createElement("section");
-    sec.className = "tbl";
-    sec.innerHTML = `<div class="secrule"><span class="secname">${name}</span>
-      <span class="secmeta">resolution ${resName(r)} · ${Object.keys(byCl).length} clusters · ${total} nuclei${filt}</span></div>
+    const sec = document.createElement("details");
+    sec.className = "tblbox";
+    sec.dataset.view = name;
+    if (openTables.has(name) || pin) sec.open = true;  // pinning is a "show me" gesture
+    sec.innerHTML = `<summary><span class="secname">${name}</span>
+      <span class="secmeta">resolution ${resName(r)} · ${Object.keys(byCl).length} clusters · ${total} nuclei${filt}</span></summary>
       <div class="tablewrap"><table>
       <tr><th>cluster</th><th>n</th><th>label path · vote share per level</th></tr>${rows}</table></div>`;
+    sec.querySelector("summary").addEventListener("click", () => {
+      // record the user's intent (click fires before the toggle applies); a section
+      // opened only by pinning does not stick open after unpinning
+      if (sec.open) openTables.delete(name); else openTables.add(name);
+    });
     host.appendChild(sec);
   }
+}
+
+const openTables = new Set();  // manual open/closed choices survive re-renders
+function reveal(el) {
+  const box = el.closest("details.tblbox");
+  if (box && !box.open) box.open = true;
+  el.scrollIntoView({behavior:"smooth", block:"center"});
 }
 
 function cssId(s) { return s.replace(/[^a-z0-9]/gi, "_"); }
@@ -591,7 +608,7 @@ function attachTip(name, canvas) {
   canvas.addEventListener("click", () => {
     if (canvas._hit == null) return;
     const row = document.getElementById(`row-${cssId(name)}-${canvas._hit}`);
-    if (row) { row.scrollIntoView({behavior:"smooth", block:"center"});
+    if (row) { reveal(row);
       row.classList.add("flash"); setTimeout(() => row.classList.remove("flash"), 1200); }
   });
 }
