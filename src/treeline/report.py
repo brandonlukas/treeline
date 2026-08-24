@@ -468,12 +468,17 @@ treeview.addEventListener("mouseleave", () => { state.hover = null; if (!state.s
 treeview.addEventListener("click", ev => {
   const el = ev.target.closest(".node"); if (!el) return;
   const sel = selFromEl(el); if (!sel) return;
-  if (sel.type === "substate" && el.dataset.ref) openDrawer(...decodeURIComponent(el.dataset.ref).split("|"));
+  if (sel.type === "substate") {
+    // substate pin and evidence popup share one lifecycle: closing the popup unpins
+    if (sameSel(state.sel, sel)) closeDrawer();
+    else if (el.dataset.ref) openDrawer(...decodeURIComponent(el.dataset.ref).split("|"));
+    return;
+  }
   state.sel = sameSel(state.sel, sel) ? null : sel;
   render();
 });
 document.addEventListener("keydown", ev => {
-  if (ev.key === "Escape") { state.sel = null; state.hover = null; closeDrawer(); render(); }
+  if (ev.key === "Escape") { state.hover = null; closeDrawer(); state.sel = null; render(); }
 });
 
 // ---- hover identity on the plots
@@ -512,11 +517,21 @@ function attachTip(name, canvas) {
 
 // ---- evidence drawer
 const drawer = document.getElementById("drawer");
-function closeDrawer() { drawer.style.display = "none"; }
+let drawerKey = null;
+function closeDrawer() {
+  drawer.style.display = "none";
+  if (drawerKey && state.sel && state.sel.type === "substate" && state.sel.key === drawerKey) {
+    state.sel = null; render();
+  }
+  drawerKey = null;
+}
 function openDrawer(name, r, cl) {
   const e = suffixOf(name, r, cl); if (!e) return;
   const S = D.samples[name];
   const path = pathOf(name, r, cl);
+  drawerKey = path.join(" > ") + " ⊕ " + e.gene;
+  state.sel = { type: "substate", key: drawerKey };  // opening pins; closing unpins
+  render();
   let mix = "";
   if (S.sample) {
     const cls = S.clusters[r]; const counts = {};
