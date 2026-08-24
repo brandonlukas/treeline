@@ -2,16 +2,16 @@
 
 A consumer of the other verbs, packaged for users: pass one or more annotated
 `.h5ad` files (a single sample, samples side by side, an integrated joint, any mix).
-The tree is the navigator — a sticky rail beside the UMAPs; hovering a label highlights
-its nuclei in every panel, clicking pins the selection and filters the tables, and the
-depth slider draws the treeline as a literal cut across the tree. Substate evidence
-opens in a drawer; refusals and overrides are counted in a banner up top. The
-resolution toggle is the union of cluster keys across the files; a panel lacking the
-selected key falls back to its own first key and says so. Integrated objects are
-recognized by the provenance stamp `integrate` writes (`.uns["treeline_integrate"]`),
-never guessed. Embeddings are the user's job (like clustering): the report reads the
-2-D basis named by --basis (default X_umap) and refuses loudly when it is missing.
-Vanilla JS on canvas; no server, no frameworks.
+The tree is the navigator — a sticky control column beside the UMAPs; it grows and
+shrinks with the depth slider, hovering a label highlights its nuclei in every panel,
+and clicking pins the selection and filters the tables. Substate evidence opens in a
+popup whose lifecycle is the pin's; refusals and overrides are counted under the
+masthead. The resolution switch is the union of cluster keys across the files; a panel
+lacking the selected key falls back to its own first key and says so. Integrated
+objects are recognized by the provenance stamp `integrate` writes
+(`.uns["treeline_integrate"]`), never guessed. Embeddings are the user's job (like
+clustering): the report reads the 2-D basis named by --basis (default X_umap) and
+refuses loudly when it is missing. Vanilla JS on canvas; no server, no frameworks.
 
     treeline report a_annotated.h5ad b_annotated.h5ad -o report.html [--basis X_umap]
 """
@@ -101,116 +101,130 @@ TEMPLATE = r"""<title>__TITLE__</title>
 }
 * { box-sizing:border-box; }
 body { margin:0; background:var(--bg); color:var(--ink);
-  font-family:"Bricolage Grotesque",system-ui,sans-serif; font-size:15px; line-height:1.5; }
+  font-family:"Bricolage Grotesque",system-ui,sans-serif; font-size:14.5px; line-height:1.5; }
 .mono { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:0.88em; }
-.wrap { max-width:1360px; margin:0 auto; padding:0 20px; }
-h1 { font-size:1.9rem; font-weight:800; margin:1.4rem 0 0.1rem; }
-h2 { font-size:1.25rem; font-weight:600; margin:2.2rem 0 0.6rem; }
-.sub { color:var(--muted); margin:0 0 1rem; }
-.controls { position:sticky; top:0; z-index:5; background:var(--bg); border-bottom:1px solid var(--line);
-  padding:10px 0; display:flex; gap:1.6rem; align-items:center; flex-wrap:wrap; }
-.ctl-label { font-size:0.72rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); }
-.seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
-.seg button { border:0; background:var(--card); color:var(--muted); padding:5px 14px; cursor:pointer;
-  font:inherit; font-weight:600; }
-.seg button.on { background:var(--pine); color:#fff; }
-.seg button:focus-visible { outline:2px solid var(--pine); outline-offset:-2px; }
-input[type=range] { accent-color:var(--pine); width:220px; vertical-align:middle; }
-#depthVal { font-weight:800; color:var(--pine); min-width:1.2em; display:inline-block; text-align:center; }
-#banner { display:none; gap:1.2rem; padding:8px 12px; margin:12px 0 0; border-radius:8px;
-  background:var(--rock-soft); font-size:0.85rem; }
-#banner span { cursor:pointer; }
+.page { max-width:1400px; margin:0 auto; padding:0 28px; }
+
+/* masthead: one strong rule, everything else hairline */
+header { padding:34px 0 18px; border-bottom:3px solid var(--ink); }
+h1 { font-size:clamp(1.7rem,3.6vw,2.5rem); font-weight:800; letter-spacing:-0.015em;
+  line-height:1.05; margin:0; }
+.meta { color:var(--muted); font-size:0.82rem; margin-top:8px; }
+#banner { display:none; gap:24px; font-size:0.82rem; margin-top:8px; }
+#banner span { cursor:pointer; color:var(--rock); }
 #banner span:hover { text-decoration:underline; }
 #banner .ov { color:var(--lichen); }
-.layout { display:grid; grid-template-columns:260px minmax(0,1fr); gap:20px; align-items:start; margin-top:14px; }
-aside#rail { position:sticky; top:58px; max-height:calc(100vh - 74px); overflow:auto;
-  background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
-#railCap { font-size:0.7rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); }
-#railCut { font-size:0.72rem; color:var(--lichen); font-weight:600; margin:2px 0 6px; }
-#railHint { font-size:0.72rem; color:var(--muted); margin-bottom:6px; }
-@media (max-width:900px) { .layout { grid-template-columns:1fr; } aside#rail { position:static; max-height:300px; } }
-.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; }
-.panel { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
-.panel h3 { margin:0 0 6px; font-size:1rem; font-weight:600; display:flex; justify-content:space-between; align-items:center; }
-.panel h3 .n { color:var(--muted); font-weight:400; font-size:0.82rem; }
-canvas { width:100%; height:auto; display:block; border-radius:6px; background:var(--surface); cursor:crosshair; }
-table { border-collapse:collapse; width:100%; font-size:0.88rem; }
-th { text-align:left; font-size:0.7rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted);
-  border-bottom:1px solid var(--line); padding:6px 10px 6px 0; }
-td { border-bottom:1px solid var(--line); padding:7px 10px 7px 0; vertical-align:top; }
+
+.lab { font-size:0.66rem; font-weight:600; letter-spacing:0.14em; text-transform:uppercase;
+  color:var(--muted); margin-bottom:7px; }
+.layout { display:grid; grid-template-columns:264px minmax(0,1fr); gap:40px; align-items:start;
+  padding-top:26px; }
+aside#rail { position:sticky; top:0; max-height:100vh; overflow:auto; padding:14px 20px 20px 0;
+  border-right:1px solid var(--line); }
+.ctl { margin-bottom:22px; }
+@media (max-width:900px) { .layout { grid-template-columns:1fr; gap:20px; }
+  aside#rail { position:static; max-height:none; border-right:0; border-bottom:1px solid var(--line);
+    padding-right:0; padding-bottom:14px; } }
+
+.seg { display:inline-flex; border:1px solid var(--line); }
+.seg button { border:0; background:transparent; color:var(--muted); padding:5px 13px; cursor:pointer;
+  font:inherit; font-size:0.82rem; font-weight:600; }
+.seg button + button { border-left:1px solid var(--line); }
+.seg button.on { background:var(--pine); color:#fff; }
+.seg button:focus-visible { outline:2px solid var(--pine); outline-offset:-2px; }
+input[type=range] { accent-color:var(--pine); width:100%; margin:2px 0 0; display:block; }
+#depthVal { color:var(--pine); }
+
+main { padding:14px 0 0; min-width:0; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:28px 32px; }
+.plot .plabel { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:7px; }
+.plot .pname { font-size:0.72rem; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; }
+.plot .pmeta { color:var(--muted); font-size:0.74rem; font-variant-numeric:tabular-nums; }
+canvas { width:100%; height:auto; display:block; background:var(--surface);
+  border:1px solid var(--line); cursor:crosshair; }
+
+/* data tables: hairlines and air, no boxes */
+section.tbl { margin-top:48px; }
+.secrule { border-top:1px solid var(--ink); padding-top:12px;
+  display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:4px 16px; }
+.secname { font-size:1.05rem; font-weight:800; }
+.secmeta { color:var(--muted); font-size:0.78rem; font-variant-numeric:tabular-nums; }
+table { border-collapse:collapse; width:100%; font-size:0.86rem; margin-top:10px; }
+th { text-align:left; font-size:0.64rem; letter-spacing:0.12em; text-transform:uppercase;
+  color:var(--muted); font-weight:600; border-bottom:1px solid var(--line); padding:6px 18px 6px 0; }
+td { border-bottom:1px solid var(--line); padding:10px 18px 10px 0; vertical-align:top; }
+td.num { font-variant-numeric:tabular-nums; color:var(--muted); white-space:nowrap; }
 tr.flash td { background:var(--rock-soft); transition:background 1.2s; }
 .tablewrap { overflow-x:auto; }
-.chip { display:inline-block; padding:1px 8px; border-radius:999px; font-size:0.8rem; margin:1px 2px 1px 0; }
-.chip.suffix { background:var(--lichen-soft); color:var(--lichen); border:1px solid var(--lichen);
-  font-family:"IBM Plex Mono",monospace; font-size:0.75rem; cursor:pointer; }
-.share { color:var(--muted); font-size:0.78rem; font-variant-numeric:tabular-nums; }
-.refused { color:var(--rock); background:var(--rock-soft); border-radius:6px; padding:2px 8px;
-  font-size:0.8rem; display:inline-block; margin-top:3px; }
-.override { color:var(--lichen); background:var(--lichen-soft); border-radius:6px; padding:2px 8px;
-  font-size:0.8rem; display:inline-block; margin-top:3px; max-width:60ch; }
-details { margin-top:4px; } summary { cursor:pointer; color:var(--pine); font-size:0.82rem; }
+.chip { display:inline-block; padding:1px 8px; border-radius:2px; font-size:0.78rem; margin:1px 2px 1px 0; }
+.chip.suffix { background:transparent; color:var(--lichen); border:1px solid var(--lichen);
+  font-family:"IBM Plex Mono",monospace; font-size:0.74rem; cursor:pointer; }
+.share { color:var(--muted); font-size:0.75rem; font-variant-numeric:tabular-nums; }
+.refused { color:var(--rock); font-size:0.78rem; margin-top:5px; max-width:70ch; }
+.override { color:var(--lichen); font-size:0.78rem; margin-top:5px; max-width:70ch; }
+details { margin-top:5px; } summary { cursor:pointer; color:var(--pine); font-size:0.78rem; }
 .genes { margin:6px 0 2px; } .genes b { font-weight:600; }
-.gene { display:inline-block; background:var(--surface); border:1px solid var(--line); border-radius:4px;
-  padding:0 6px; margin:1px 2px; font-family:"IBM Plex Mono",monospace; font-size:0.78rem; }
-footer { color:var(--muted); font-size:0.82rem; border-top:1px solid var(--line); margin-top:2.5rem; padding:1rem 0 2rem; }
-/* navigator tree */
+.gene { display:inline-block; border:1px solid var(--line); border-radius:2px;
+  padding:0 6px; margin:1px 2px; font-family:"IBM Plex Mono",monospace; font-size:0.74rem; }
+footer { color:var(--muted); font-size:0.78rem; border-top:1px solid var(--line);
+  margin-top:56px; padding:14px 0 40px; max-width:72ch; }
+
+/* the tree: flush left, counts flush right */
 .tree, .tree ul { list-style:none; margin:0; padding-left:0; }
-.tree ul { padding-left:0.9rem; border-left:1px solid var(--line); margin-left:0.34rem; }
-.tree li { padding:1px 0; }
-.tree .node { display:inline-flex; align-items:center; gap:0.4rem; cursor:pointer;
-  border-radius:5px; padding:1px 5px; font-size:0.82rem; }
+.tree ul { padding-left:12px; border-left:1px solid var(--line); margin-left:4px; }
+.tree li { padding:0; }
+.tree .node { display:flex; align-items:center; gap:7px; cursor:pointer; width:100%;
+  padding:2px 4px 2px 2px; font-size:0.8rem; }
 .tree .node:hover { background:var(--surface); }
-.tree .node.pin { outline:2px solid var(--pine); }
-.tree .node i { width:10px; height:10px; border-radius:3px; flex:none; }
-.tree .node .nm { font-weight:600; }
-.tree .node .ct { color:var(--muted); font-size:0.72rem; font-variant-numeric:tabular-nums; }
-.tree .sub-node .nm { font-family:"IBM Plex Mono",monospace; font-weight:500; font-size:0.76rem; }
-.tree .sub-node { border:1px solid var(--lichen); border-radius:6px; padding:0 6px; margin:1px 0; }
-/* tooltip + drawer */
+.tree .node.pin { box-shadow:inset 2px 0 0 var(--pine); background:var(--surface); }
+.tree .node i { width:9px; height:9px; flex:none; }
+.tree .node .nm { font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tree .node .ct { color:var(--muted); font-size:0.7rem; font-variant-numeric:tabular-nums;
+  margin-left:auto; flex:none; }
+.tree .sub-node .nm { font-family:"IBM Plex Mono",monospace; font-weight:500; font-size:0.72rem;
+  color:var(--lichen); }
+.tree .sub-node i { outline:1px solid var(--lichen); outline-offset:1px; width:7px; height:7px; }
+
+/* tooltip + evidence popup: sharp, hairline */
 #tip { position:fixed; display:none; z-index:20; pointer-events:none; background:var(--card);
-  border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-size:0.8rem;
-  box-shadow:0 4px 14px rgba(0,0,0,0.18); max-width:340px; }
-#tip .mono { font-size:0.75rem; color:var(--muted); }
-#drawer { position:fixed; right:16px; bottom:16px; z-index:30; display:none; width:min(400px,92vw);
-  background:var(--card); border:1px solid var(--lichen); border-radius:12px; padding:14px 16px;
-  box-shadow:0 8px 28px rgba(0,0,0,0.25); font-size:0.86rem; }
-#drawer h4 { margin:0 0 4px; font-size:0.95rem; }
+  border:1px solid var(--ink); padding:7px 11px; font-size:0.78rem; max-width:340px; }
+#tip .mono { font-size:0.72rem; color:var(--muted); }
+#drawer { position:fixed; right:24px; bottom:24px; z-index:30; display:none; width:min(400px,92vw);
+  background:var(--card); border:1px solid var(--ink); padding:16px 18px; font-size:0.84rem;
+  box-shadow:6px 6px 0 var(--rock-soft); }
+#drawer h4 { margin:0 0 2px; font-size:0.95rem; }
 #drawer .close { float:right; cursor:pointer; border:0; background:none; color:var(--muted);
-  font:inherit; font-size:1.1rem; }
-#drawer table { font-size:0.8rem; }
-#drawer .metrics { color:var(--muted); margin:2px 0 8px; }
-.mix { height:12px; border-radius:4px; display:flex; overflow:hidden; margin:6px 0 2px; }
-.mixlbl { font-size:0.75rem; color:var(--muted); }
+  font:inherit; font-size:1.15rem; line-height:1; }
+#drawer table { font-size:0.78rem; margin-top:8px; }
+#drawer .metrics { color:var(--muted); font-size:0.78rem; margin:2px 0 0; }
+.mix { height:10px; display:flex; overflow:hidden; margin:10px 0 3px; }
+.mixlbl { font-size:0.72rem; color:var(--muted); font-variant-numeric:tabular-nums; }
 </style>
-<div class="wrap">
-  <h1>__TITLE__</h1>
-  <p class="sub">Multi-level annotation, evidence-gated. Hover the tree to light up nuclei;
-  click to pin and filter. Labels stop where their vote does.</p>
-  <div class="controls">
-    <span><span class="ctl-label">Resolution</span>&nbsp; <span class="seg" id="resSeg"></span></span>
-    <span><span class="ctl-label">Depth</span>&nbsp; coarse <input type="range" id="depth" min="1" value="2"> fine
-      <span id="depthVal"></span></span>
-    <span><span class="ctl-label">Color by</span>&nbsp; <span class="seg" id="colorSeg">
-      <button data-v="label" class="on">labels</button><button data-v="cluster">clusters</button></span></span>
-    <span id="jointCtl" style="display:none"><span class="ctl-label">Integrated colors</span>&nbsp; <span class="seg" id="jointSeg">
-      <button data-v="label" class="on">labels</button><button data-v="sample">sample</button></span></span>
-  </div>
-  <div id="banner"></div>
+<div class="page">
+  <header>
+    <h1>__TITLE__</h1>
+    <div class="meta">Multi-level annotation, evidence-gated — labels stop where their vote does.
+    Hover the tree to highlight · click to pin · esc clears.</div>
+    <div id="banner"></div>
+  </header>
   <div class="layout">
     <aside id="rail">
-      <div id="railCap">The tree</div>
-      <div id="railHint">hover: highlight · click: pin/unpin · esc: clear</div>
-      <div id="treeview"></div>
+      <div class="ctl"><div class="lab">Resolution</div><div class="seg" id="resSeg"></div></div>
+      <div class="ctl"><div class="lab">Depth · <span id="depthVal"></span></div>
+        <input type="range" id="depth" min="1" value="2"></div>
+      <div class="ctl"><div class="lab">Color</div><div class="seg" id="colorSeg">
+        <button data-v="label" class="on">labels</button><button data-v="cluster">clusters</button><button data-v="sample" id="sampleBtn">sample</button></div></div>
+      <div class="ctl"><div class="lab">The tree</div><div id="treeview"></div></div>
     </aside>
     <main>
       <div class="grid" id="plots"></div>
       <div id="tables"></div>
+      <footer>Per-sample views are annotated independently; an integrated view (recognized by its
+      provenance stamp) is scANVI on the tree-cut consensus prior, reclustered by the user and
+      re-annotated by the same vote. ⛔ gate refusals are automated, self-reporting rules;
+      ✍ overrides are signed. Generated by treeline report.</footer>
     </main>
   </div>
-  <footer>Per-sample views are annotated independently; an integrated view (recognized by its
-  provenance stamp) is scANVI on the tree-cut consensus prior, reclustered by the user and
-  re-annotated by the same vote. Gate refusals are automated, self-reporting rules; ✍ overrides
-  are signed (SPECS provenance tiers). Generated by treeline report.</footer>
 </div>
 <div id="tip"></div>
 <div id="drawer"></div>
@@ -218,7 +232,7 @@ footer { color:var(--muted); font-size:0.82rem; border-top:1px solid var(--line)
 const D = __DATA__;
 const RES = [...new Set(Object.values(D.samples).flatMap(S => Object.keys(S.clusters)))];
 const HAS_SUFFIX = Object.values(D.suffixes || {}).some(byRes => Object.values(byRes).some(m => Object.keys(m).length));
-let state = { res: RES[0], depth: 2, jointBy: "label", colorBy: "label", hover: null, sel: null };
+let state = { res: RES[0], depth: 2, colorBy: "label", hover: null, sel: null };
 const els = {};
 
 function pathOf(sample, res, cl) { const c = D.calls[sample][res][String(cl)]; return c ? c.path : []; }
@@ -269,8 +283,8 @@ function sameSel(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
 function activeSel() { return state.sel || state.hover; }
 
 function makeCanvas(id, title) {
-  const div = document.createElement("div"); div.className = "panel";
-  div.innerHTML = `<h3>${title} <span class="n"></span></h3><canvas id="${id}"></canvas>`;
+  const div = document.createElement("div"); div.className = "plot";
+  div.innerHTML = `<div class="plabel"><span class="pname">${title}</span><span class="pmeta"></span></div><canvas id="${id}"></canvas>`;
   document.getElementById("plots").appendChild(div);
   return div.querySelector("canvas");
 }
@@ -303,12 +317,12 @@ function renderPlots() {
   for (const [name, S] of Object.entries(D.samples)) {
     const r = resOf(S), cls = S.clusters[r];
     const labels = cls.map(c => labelKey(name, r, c, state.depth));
-    const nspan = els[name].parentElement.querySelector(".n");
-    nspan.textContent = `${S.x.length.toLocaleString()} nuclei · ${resName(r)}` + (r !== state.res ? " (only)" : "");
+    const meta = els[name].parentElement.querySelector(".pmeta");
+    meta.textContent = `${S.x.length.toLocaleString()} · ${resName(r)}` + (r !== state.res ? " (only)" : "");
     const matchByCl = {};
     if (sel) for (const c of new Set(cls)) matchByCl[c] = matchesSel(sel, name, r, c);
     draw(els[name], S.x, S.y,
-      S.sample && state.jointBy === "sample" ? i => sampleCols[S.sample[i]]
+      state.colorBy === "sample" && S.sample ? i => sampleCols[S.sample[i]]
       : state.colorBy === "cluster" ? i => clusterColor(cls[i])
       : i => colorFor(labels[i]),
       sel ? i => matchByCl[cls[i]] : null);
@@ -354,8 +368,7 @@ function renderTree() {
         const p = path.slice(0, k).join(" > ");
         nuclei[p] = (nuclei[p]||0)+n;
       }
-      const full = path.join(" > ");
-      endClusters[full] = (endClusters[full]||0)+1;
+      endClusters[path.join(" > ")] = (endClusters[path.join(" > ")]||0)+1;
     }
   }
   // substates come from every view (they may live only on the integrated object)
@@ -394,7 +407,7 @@ function renderTree() {
       if (showSubs) for (const [skey, s] of Object.entries(subs[key] || {}).sort((a,b) => b[1].n - a[1].n)) {
         let scls = "sub-node";
         if (pin && pin.type === "substate" && pin.key === skey) scls += " pin";
-        inner += `<li>${node(colorFor(skey), s.name + "+", `${s.n.toLocaleString()} · Fβ ${s.fbeta}`,
+        inner += `<li>${node(colorFor(skey), s.name + "+", `${s.n.toLocaleString()}`,
           scls, `data-skey="${encodeURIComponent(skey)}" data-ref="${encodeURIComponent(s.ref.join("|"))}"`)}</li>`;
       }
       html += `<li>${node(colorFor(key), label, nuclei[key].toLocaleString() + kcl, cls,
@@ -438,12 +451,15 @@ function renderTables() {
         return panel ? `<div class="genes"><b>${lv.node}</b> (${(lv.share*100).toFixed(0)}% agree): ${panel}</div>` : "";
       }).join("");
       const details = genes ? `<details><summary>marker genes per level</summary>${genes}</details>` : "";
-      rows += `<tr id="row-${cssId(name)}-${cl}"><td class="mono">${cl}</td><td>${sizes[cl].toLocaleString()}</td>
+      rows += `<tr id="row-${cssId(name)}-${cl}"><td class="mono num">${cl}</td><td class="num">${sizes[cl].toLocaleString()}</td>
         <td>${chain}${suffix}${refusal}${override}${details}</td></tr>`;
     });
     const filt = pin ? ` · ${shown} shown (pinned)` : "";
-    const sec = document.createElement("div");
-    sec.innerHTML = `<h2>${name} · resolution ${resName(r)} · ${Object.keys(byCl).length} clusters${filt}</h2>
+    const total = S.x.length.toLocaleString();
+    const sec = document.createElement("section");
+    sec.className = "tbl";
+    sec.innerHTML = `<div class="secrule"><span class="secname">${name}</span>
+      <span class="secmeta">resolution ${resName(r)} · ${Object.keys(byCl).length} clusters · ${total} nuclei${filt}</span></div>
       <div class="tablewrap"><table>
       <tr><th>cluster</th><th>n</th><th>label path · vote share per level</th></tr>${rows}</table></div>`;
     host.appendChild(sec);
@@ -515,7 +531,7 @@ function attachTip(name, canvas) {
   });
 }
 
-// ---- evidence drawer
+// ---- evidence popup (pin and popup share one lifecycle)
 const drawer = document.getElementById("drawer");
 let drawerKey = null;
 function closeDrawer() {
@@ -565,11 +581,7 @@ RES.forEach(r => {
     b.className = "on"; render(); };
   resSeg.appendChild(b);
 });
-if (Object.values(D.samples).some(S => S.sample)) document.getElementById("jointCtl").style.display = "";
-document.querySelectorAll("#jointSeg button").forEach(b => b.onclick = () => {
-  state.jointBy = b.dataset.v;
-  document.querySelectorAll("#jointSeg button").forEach(x => x.className = ""); b.className = "on"; render();
-});
+if (!Object.values(D.samples).some(S => S.sample)) document.getElementById("sampleBtn").remove();
 document.querySelectorAll("#colorSeg button").forEach(b => b.onclick = () => {
   state.colorBy = b.dataset.v;
   document.querySelectorAll("#colorSeg button").forEach(x => x.className = ""); b.className = "on"; render();
