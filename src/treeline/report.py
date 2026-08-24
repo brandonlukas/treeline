@@ -227,10 +227,10 @@ footer { color:var(--muted); font-size:0.78rem; border-top:1px solid var(--line)
   <div class="layout">
     <aside id="rail">
       <div class="ctl"><div class="lab">Resolution</div><div class="seg" id="resSeg"></div></div>
-      <div class="ctl"><div class="lab">Depth · <span id="depthVal"></span></div>
-        <input type="range" id="depth" min="1" value="2"></div>
       <div class="ctl"><div class="lab">Color</div><div class="seg" id="colorSeg">
         <button data-v="label" class="on">labels</button><button data-v="cluster">clusters</button><button data-v="sample" id="sampleBtn">sample</button></div></div>
+      <div class="ctl" id="depthCtl"><div class="lab">Depth · <span id="depthVal"></span></div>
+        <input type="range" id="depth" min="1" value="2"></div>
       <div class="ctl" id="srcCtl" style="display:none"><div class="lab">Integrated labels</div><div class="seg" id="srcSeg">
         <button data-v="joint" class="on">joint</button><button data-v="source">per-sample</button></div></div>
       <div class="ctl"><div class="lab">The tree</div><div id="treeview"></div></div>
@@ -673,10 +673,16 @@ if (Object.values(D.samples).some(S => S.srcIndex)) {
     updateDepthMax(); render();
   });
 }
+// depth is a dependency of label coloring: shown only while Color = labels
+function updateDepthVis() {
+  document.getElementById("depthCtl").style.display = state.colorBy === "label" ? "" : "none";
+}
 document.querySelectorAll("#colorSeg button").forEach(b => b.onclick = () => {
   state.colorBy = b.dataset.v;
-  document.querySelectorAll("#colorSeg button").forEach(x => x.className = ""); b.className = "on"; render();
+  document.querySelectorAll("#colorSeg button").forEach(x => x.className = ""); b.className = "on";
+  updateDepthVis(); render();
 });
+updateDepthVis();
 const depthEl = document.getElementById("depth");
 updateDepthMax();
 depthEl.oninput = () => { state.depth = +depthEl.value; render(); };
