@@ -247,7 +247,6 @@ footer { color:var(--muted); font-size:0.78rem; border-top:1px solid var(--line)
 <script>
 const D = __DATA__;
 const RES = [...new Set(Object.values(D.samples).flatMap(S => Object.keys(S.clusters)))];
-const HAS_SUFFIX = Object.values(D.suffixes || {}).some(byRes => Object.values(byRes).some(m => Object.keys(m).length));
 let state = { res: RES[0], depth: 2, colorBy: "label", jointLabels: "joint", hover: null, sel: null };
 const els = {};
 
@@ -282,6 +281,20 @@ function leaf(label) {
 function resName(r) { return r.replace(/^leiden_/, ""); }
 const COUNT_ALL = Object.values(D.samples).every(S => S.integrated);
 function counted(S) { return COUNT_ALL || !S.integrated; }
+
+// substates are offered only while some displayed annotation carries them: not from an
+// integrated view wearing per-sample labels, and only at resolutions where they exist
+function suffixActive() {
+  return Object.entries(D.samples).some(([name, S]) => {
+    if (state.jointLabels === "source" && S.srcIndex) return false;
+    return Object.keys((D.suffixes[name] || {})[resOf(S)] || {}).length > 0;
+  });
+}
+function updateDepthMax() {
+  const depthEl = document.getElementById("depth");
+  depthEl.max = D.maxDepth + (suffixActive() ? 1 : 0);
+  if (state.depth > +depthEl.max) { state.depth = +depthEl.max; depthEl.value = state.depth; }
+}
 
 // ---- shared selection: {type:"node", path:[...]} | {type:"substate", key} | {type:"unknown"}
 function matchesSel(sel, name, r, cl) {
@@ -421,8 +434,10 @@ function renderTree() {
       endClusters[path.join(" > ")] = (endClusters[path.join(" > ")]||0)+1;
     }
   }
-  // substates come from every view (they may live only on the integrated object)
+  // substates come from every view whose labels are in play (an integrated view
+  // wearing per-sample labels contributes none — no panel shows its joint annotation)
   for (const [name, S] of Object.entries(D.samples)) {
+    if (state.jointLabels === "source" && S.srcIndex) continue;
     const r = resOf(S), sizes = {};
     S.clusters[r].forEach(c => sizes[c] = (sizes[c]||0)+1);
     for (const [cl, e] of Object.entries((D.suffixes[name] || {})[r] || {})) {
@@ -628,7 +643,7 @@ const resSeg = document.getElementById("resSeg");
 RES.forEach(r => {
   const b = document.createElement("button"); b.textContent = resName(r); if (r === state.res) b.className = "on";
   b.onclick = () => { state.res = r; resSeg.querySelectorAll("button").forEach(x => x.className = "");
-    b.className = "on"; render(); };
+    b.className = "on"; updateDepthMax(); render(); };
   resSeg.appendChild(b);
 });
 if (!Object.values(D.samples).some(S => S.sample) && Object.keys(D.samples).length < 2)
@@ -637,7 +652,8 @@ if (Object.values(D.samples).some(S => S.srcIndex)) {
   document.getElementById("srcCtl").style.display = "";
   document.querySelectorAll("#srcSeg button").forEach(b => b.onclick = () => {
     state.jointLabels = b.dataset.v;
-    document.querySelectorAll("#srcSeg button").forEach(x => x.className = ""); b.className = "on"; render();
+    document.querySelectorAll("#srcSeg button").forEach(x => x.className = ""); b.className = "on";
+    updateDepthMax(); render();
   });
 }
 document.querySelectorAll("#colorSeg button").forEach(b => b.onclick = () => {
@@ -645,7 +661,7 @@ document.querySelectorAll("#colorSeg button").forEach(b => b.onclick = () => {
   document.querySelectorAll("#colorSeg button").forEach(x => x.className = ""); b.className = "on"; render();
 });
 const depthEl = document.getElementById("depth");
-depthEl.max = D.maxDepth + (HAS_SUFFIX ? 1 : 0);
+updateDepthMax();
 depthEl.oninput = () => { state.depth = +depthEl.value; render(); };
 
 for (const [name, S] of Object.entries(D.samples)) {
