@@ -15,6 +15,8 @@ apps/joint_1619.py is the POC driver for that loop.
 
 from __future__ import annotations
 
+import json
+
 import anndata as ad
 import numpy as np
 import pandas as pd
@@ -101,4 +103,17 @@ def integrate(
         plan_kwargs={"classification_ratio": classification_ratio},
     )
     joint.obsm["X_treeline"] = ms.get_latent_representation()
+    # provenance stamp: how this joint object came to be (also how downstream
+    # consumers — e.g. the report — recognize an integrated object)
+    joint.uns["treeline_integrate"] = json.dumps(
+        {
+            "samples": list(adatas),
+            "supervise_depth": supervise_depth,
+            "n_hvg": n_hvg,
+            "n_latent": n_latent,
+            "scvi_epochs": scvi_epochs,
+            "scanvi_epochs": scanvi_epochs,
+            "classification_ratio": classification_ratio,
+        }
+    )
     return joint

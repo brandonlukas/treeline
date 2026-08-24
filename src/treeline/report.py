@@ -1,31 +1,34 @@
-"""Static HTML report: a downstream consumer of the treeline API (not part of it).
+"""The report verb: a static HTML view over any set of annotated h5ads.
 
-Renders every annotated h5ad in a results directory — per-sample views, the integrated
-joint, and any refined within-class views — with the coarse-to-fine slider, hierarchical
-colors from `treeline.colors.palette`, per-cluster path tables and NS-Forest substates.
-Vanilla JS on canvas; no server, no frameworks.
+A consumer of the other verbs, packaged for users: pass one or more annotated
+`.h5ad` files (a single sample, samples side by side, an integrated joint, any mix) and
+get the coarse-to-fine slider, per-level agreement, hierarchical colors, the label
+tree, NS-Forest substates with their evidence, and per-cluster tables. The resolution
+toggle is the union of cluster keys across the files; a panel lacking the selected key
+falls back to its own first key and says so in its header. Integrated objects are
+recognized by the provenance stamp `integrate` writes (`.uns["treeline_integrate"]`),
+never guessed. Vanilla JS on canvas; no server, no frameworks.
 
-    .venv/bin/python apps/report.py results/poc report.html
+    treeline report a_annotated.h5ad b_annotated.h5ad -o report.html
 """
 
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
-
-import scanpy as sc
 
 from treeline.annotate import annotations
 from treeline.colors import palette
 from treeline.harmonize import observed_paths, path_tree
 
 
-def build_data(results: Path) -> dict:
+def build_data(paths: list[Path]) -> dict:
+    import scanpy as sc
+
     samples, calls, suffixes, anns = {}, {}, {}, []
-    for f in sorted(results.glob("*_annotated.h5ad")):
+    for f in paths:
         a = sc.read_h5ad(f)
-        name = f.stem.removesuffix("_annotated").replace("refined__", "refined · ")
+        name = Path(f).stem.removesuffix("_annotated")
         ann = annotations(a)
         anns.append(ann)
         keys = ann["cluster_keys"]
@@ -35,15 +38,16 @@ def build_data(results: Path) -> dict:
             "y": [round(float(v), 2) for v in um[:, 1]],
             "clusters": {k: a.obs[k].astype(str).astype(int).tolist() for k in keys},
         }
-        if "sample" in a.obs.columns:  # integrated/refined views: same nuclei as the samples
-            names = sorted(a.obs["sample"].unique().tolist())
-            entry["sampleNames"] = names
-            entry["sample"] = [names.index(s) for s in a.obs["sample"]]
+        if "treeline_integrate" in a.uns:  # provenance stamp, not a guess
             entry["integrated"] = True
+            if "sample" in a.obs.columns:
+                names = sorted(a.obs["sample"].unique().tolist())
+                entry["sampleNames"] = names
+                entry["sample"] = [names.index(s) for s in a.obs["sample"]]
         samples[name] = entry
         calls[name] = ann["calls"]
         suffixes[name] = ann["suffixes"]
-    paths = observed_paths(calls)
+    paths_seen = observed_paths(calls)
     panels: dict = {}
     for ann in anns:
         panels.update(ann.get("panels", {}))
@@ -53,20 +57,21 @@ def build_data(results: Path) -> dict:
         "suffixes": suffixes,
         "panels": panels,
         "colors": palette(*anns),
-        "tree": path_tree(paths),
-        "maxDepth": max((len(p) for p in paths), default=1),
+        "tree": path_tree(paths_seen),
+        "maxDepth": max((len(p) for p in paths_seen), default=1),
     }
 
 
-def main() -> None:
-    results, out = Path(sys.argv[1]), Path(sys.argv[2])
-    data = build_data(results)
-    html = TEMPLATE.replace("__DATA__", json.dumps(data, separators=(",", ":")))
-    out.write_text(html)
-    print(f"wrote {out} ({out.stat().st_size / 1e6:.1f} MB)")
+def render_report(paths: list, out, title: str | None = None) -> None:
+    paths = [Path(p) for p in paths]
+    title = title or "treeline · " + ", ".join(p.stem.removesuffix("_annotated") for p in paths)
+    data = build_data(paths)
+    html = TEMPLATE.replace("__TITLE__", title).replace("__DATA__", json.dumps(data, separators=(",", ":")))
+    Path(out).write_text(html)
+    print(f"wrote {out} ({Path(out).stat().st_size / 1e6:.1f} MB)")
 
 
-TEMPLATE = r"""<title>treeline 1619</title>
+TEMPLATE = r"""<title>__TITLE__</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 :root {
@@ -139,7 +144,7 @@ footer { color:var(--muted); font-size:0.82rem; border-top:1px solid var(--line)
 .tree .sub-node { border:1px solid var(--lichen); border-radius:6px; padding:0 8px; margin:1px 0; }
 </style>
 <div class="wrap">
-  <h1>treeline · 1619 LM / MM</h1>
+  <h1>__TITLE__</h1>
   <p class="sub">Multi-level annotation, evidence-gated. Slide coarse → fine; labels stop where their vote does.
   Same parent, same hue — deeper labels are darker shades.</p>
   <div class="controls">
@@ -148,7 +153,7 @@ footer { color:var(--muted); font-size:0.82rem; border-top:1px solid var(--line)
       <span id="depthVal"></span></span>
     <span><span class="ctl-label">Color by</span>&nbsp; <span class="seg" id="colorSeg">
       <button data-v="label" class="on">labels</button><button data-v="cluster">clusters</button></span></span>
-    <span><span class="ctl-label">Integrated colors</span>&nbsp; <span class="seg" id="jointSeg">
+    <span id="jointCtl" style="display:none"><span class="ctl-label">Integrated colors</span>&nbsp; <span class="seg" id="jointSeg">
       <button data-v="label" class="on">labels</button><button data-v="sample">sample</button></span></span>
   </div>
   <div class="grid" id="plots"></div>
@@ -158,15 +163,15 @@ footer { color:var(--muted); font-size:0.82rem; border-top:1px solid var(--line)
   entries are NS-Forest substates — what grows above the treeline.</p>
   <div id="treeview"></div>
   <div id="tables"></div>
-  <footer>Per-sample views are annotated independently; the integrated view is scANVI on the tree-cut
-  consensus prior, reclustered by the driver and re-annotated by the same vote. Gate refusals are
-  automated, self-reporting rules; ✍ overrides are signed (SPECS provenance tiers). Generated by
-  apps/report.py, a consumer of the treeline API.</footer>
+  <footer>Per-sample views are annotated independently; an integrated view (recognized by its
+  provenance stamp) is scANVI on the tree-cut consensus prior, reclustered by the user and
+  re-annotated by the same vote. Gate refusals are automated, self-reporting rules; ✍ overrides
+  are signed (SPECS provenance tiers). Generated by treeline report.</footer>
 </div>
 <script>
 const D = __DATA__;
-const RES = Object.keys(D.samples[Object.keys(D.samples)[0]].clusters);
-const HAS_SUFFIX = Object.keys(D.suffixes || {}).length > 0;
+const RES = [...new Set(Object.values(D.samples).flatMap(S => Object.keys(S.clusters)))];
+const HAS_SUFFIX = Object.values(D.suffixes || {}).some(byRes => Object.values(byRes).some(m => Object.keys(m).length));
 let state = { res: RES[0], depth: 2, jointBy: "label", colorBy: "label" };
 const els = {};
 
@@ -184,6 +189,8 @@ function labelKey(sample, res, cl, depth) {
   return labelAt(path, depth);
 }
 function colorFor(label) { return D.colors[label] || D.colors.Unknown; }
+function resOf(S) { return S.clusters[state.res] ? state.res : Object.keys(S.clusters)[0]; }
+function clusterColor(cl) { return `hsl(${(cl * 137.508) % 360} 55% 48%)`; }
 // suffix palette keys stay on the lead gene; display names show the full minimal set
 const COMBO = {};
 for (const [s, byRes] of Object.entries(D.suffixes)) for (const [r, byCl] of Object.entries(byRes))
@@ -196,8 +203,6 @@ function statsTitle(e) {
     `${m.gene}: binary ${m.binary_score}, thr ${m.threshold}, on-target ${m.on_target}`).join(" | ");
   return `necessary+sufficient vs siblings — Fbeta ${e.fbeta} · PPV ${e.ppv} · recall ${e.recall} | ${per}`;
 }
-function resOf(S) { return S.clusters[state.res] ? state.res : Object.keys(S.clusters)[0]; }
-function clusterColor(cl) { return `hsl(${(cl * 137.508) % 360} 55% 48%)`; }
 function leaf(label) {
   if (label.includes(" ⊕ ")) {
     const [p, g] = label.split(" ⊕ "); const seg = p.split(" > ");
@@ -206,6 +211,10 @@ function leaf(label) {
   const p = label.split(" > "); return p[p.length-1];
 }
 function resName(r) { return r.replace(/^leiden_/, ""); }
+// legend/tree counting: skip integrated views (same nuclei as the samples) — unless
+// only integrated views were given, in which case they ARE the data
+const COUNT_ALL = Object.values(D.samples).every(S => S.integrated);
+function counted(S) { return COUNT_ALL || !S.integrated; }
 
 function makeCanvas(id, title, n) {
   const div = document.createElement("div"); div.className = "panel";
@@ -233,12 +242,15 @@ function render() {
   document.getElementById("depthVal").textContent =
     state.depth > D.maxDepth ? D.maxDepth + "+" : state.depth;
   const counts = {};
-  const sampleCols = ["#2F6B4F", "#A9761F"];
+  const sampleCols = ["#2F6B4F", "#A9761F", "#75818C", "#5FB08A"];
   for (const [name, S] of Object.entries(D.samples)) {
-    const r = resOf(S);  // refined views exist at one resolution only
+    const r = resOf(S);  // falls back to the view's own first key
     const cls = S.clusters[r];
     const labels = cls.map(c => labelKey(name, r, c, state.depth));
-    if (!S.integrated) labels.forEach(l => counts[l] = (counts[l]||0)+1);
+    if (counted(S)) labels.forEach(l => counts[l] = (counts[l]||0)+1);
+    const nspan = els[name].parentElement.querySelector(".n");
+    nspan.textContent = `${S.x.length.toLocaleString()} nuclei · ${resName(r)}` +
+      (r !== state.res ? " (only)" : "");
     draw(els[name], S.x, S.y,
       S.sample && state.jointBy === "sample" ? i => sampleCols[S.sample[i]]
       : state.colorBy === "cluster" ? i => clusterColor(cls[i])
@@ -256,14 +268,14 @@ function render() {
 }
 
 function renderTree() {
-  // nuclei per path prefix, clusters per exact path, substates per (path, gene) — current res
+  // nuclei per path prefix, clusters per exact path, substates per (path, gene)
   const nuclei = {}, endClusters = {}, subs = {};
   for (const [name, S] of Object.entries(D.samples)) {
-    if (S.integrated) continue;  // same nuclei as the samples — don't double-count
-    const sizes = {};
-    S.clusters[state.res].forEach(c => sizes[c] = (sizes[c]||0)+1);
+    if (!counted(S)) continue;
+    const r = resOf(S), sizes = {};
+    S.clusters[r].forEach(c => sizes[c] = (sizes[c]||0)+1);
     for (const [cl, n] of Object.entries(sizes)) {
-      const path = pathOf(name, state.res, cl);
+      const path = pathOf(name, r, cl);
       if (!path.length) { nuclei["Unknown"] = (nuclei["Unknown"]||0)+n; continue; }
       for (let k = 1; k <= path.length; k++) {
         const p = path.slice(0, k).join(" > ");
@@ -271,7 +283,7 @@ function renderTree() {
       }
       const full = path.join(" > ");
       endClusters[full] = (endClusters[full]||0)+1;
-      const e = suffixOf(name, state.res, cl);
+      const e = suffixOf(name, r, cl);
       if (e) {
         const key = full + " ⊕ " + e.gene;
         subs[full] = subs[full] || {};
@@ -300,7 +312,7 @@ function renderTree() {
     }
     return html;
   }
-  const total = Object.values(D.samples).filter(S => !S.integrated).reduce((a, S) => a + S.x.length, 0);
+  const total = Object.entries(D.samples).filter(([n, S]) => counted(S)).reduce((a, [n, S]) => a + S.x.length, 0);
   let unknown = nuclei["Unknown"]
     ? `<li>${node(D.colors.Unknown, "Unknown", nuclei["Unknown"].toLocaleString())}</li>` : "";
   document.getElementById("treeview").innerHTML =
@@ -351,6 +363,7 @@ RES.forEach(r => {
     b.className = "on"; render(); };
   resSeg.appendChild(b);
 });
+if (Object.values(D.samples).some(S => S.sample)) document.getElementById("jointCtl").style.display = "";
 document.querySelectorAll("#jointSeg button").forEach(b => b.onclick = () => {
   state.jointBy = b.dataset.v;
   document.querySelectorAll("#jointSeg button").forEach(x => x.className = ""); b.className = "on"; render();
@@ -368,7 +381,3 @@ render();
 window.addEventListener("resize", () => render());
 </script>
 """
-
-
-if __name__ == "__main__":
-    main()

@@ -37,13 +37,17 @@ benchmarks, other datasets, other ontologies: non-goals until v2 (see v2 directi
    `Unknown`, scANVI's unlabeled class). Emits the joint latent and stops.
 5. **`colors`**: annotation output -> the hierarchical palette (same parent, same hue;
    depth darkens; substates ramp within the parent hue).
+6. **`report`** (view, built on the verbs above): any set of annotated h5ads -> one
+   static HTML page — the coarse-to-fine slider, the label tree, per-cluster tables
+   with vote shares and substate evidence. The resolution toggle is the union of
+   cluster keys across the files; a view lacking the selected key falls back to its
+   own first key and says so. Integrated objects are recognized by the provenance
+   stamp `integrate` writes into `.uns["treeline_integrate"]`, never guessed.
 
 **Treeline performs no clustering anywhere.** The user's loop: cluster (their method) ->
 annotate per sample -> integrate -> recluster the latent (their method) -> annotate the
-joint -> colors at every step. Outside the API: upstream QC/ambient correction,
-within-type reclustering (deliberately unsupported — see Integration), and the HTML
-report — a downstream *consumer* of these verbs kept in `apps/` (its natural views: one
-sample, samples side by side, integrated, integrated + relabels).
+joint -> substates/colors/report at every step. Outside the API: upstream QC/ambient
+correction and within-type reclustering (deliberately unsupported — see Integration).
 
 ## Why (the gap)
 
@@ -139,7 +143,7 @@ integrate ─ (>=2 annotated samples) scANVI on the tree-cut consensus prior
 user reclusters the latent (their method) -> annotate the joint (same verb, same rules)
         │
         v
-colors + report (apps/): the slider (coarse -> fine), per-level agreement,
+colors + report: the slider (coarse -> fine), per-level agreement,
 marker evidence, the label tree, substates above the treeline
 ```
 
@@ -300,11 +304,12 @@ detection (known-hard #5), the `relabel` override decision (inputs #4).
 treeline/
   SPECS.md                this file
   assets/                 dev/test data (gitignored except small files — see assets/README.md)
-  src/treeline/           the API: tree.py (derive-tree), annotate.py (orchestrates
-                          vote.py + nsforest.py), scanvi.py (integrate), colors.py,
-                          harmonize.py, cli.py — flat, no subpackages
-  apps/                   consumers, not API: poc_1619.py (per-sample driver),
-                          joint_1619.py (integration loop driver), report.py (HTML report)
+  src/treeline/           the API: tree.py (derive-tree), annotate.py (annotate +
+                          substates, orchestrating vote.py + nsforest.py), scanvi.py
+                          (integrate), colors.py, report.py, harmonize.py, cli.py —
+                          flat, no subpackages
+  apps/                   POC drivers, not API: poc_1619.py (per-sample),
+                          joint_1619.py (integration loop)
 ```
 
 Conventions inherited from the sibling repos: `src/`-layout, ruff + mypy + pytest,

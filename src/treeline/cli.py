@@ -6,6 +6,7 @@
     treeline substates annotated.h5ad --clusters leiden_2.0 -o annotated.h5ad
     treeline integrate a_annotated.h5ad b_annotated.h5ad -o joint.h5ad
     treeline colors annotated.h5ad [more.h5ad ...] -o palette.json
+    treeline report annotated.h5ad [more.h5ad ...] -o report.html
     treeline summary annotated.h5ad
 
 `annotate` expects log-normalized X and cluster labels already in .obs (treeline
@@ -57,6 +58,11 @@ def main() -> None:
     c = sub.add_parser("colors", help="annotated h5ads -> hierarchical label palette (JSON)")
     c.add_argument("h5ads", nargs="+")
     c.add_argument("-o", "--out", required=True)
+
+    r = sub.add_parser("report", help="annotated h5ads -> static HTML report (slider, tree, tables)")
+    r.add_argument("h5ads", nargs="+")
+    r.add_argument("--title", help="report title (default: derived from filenames)")
+    r.add_argument("-o", "--out", required=True)
 
     m = sub.add_parser("summary", help="print an annotated h5ad's labels, per clustering")
     m.add_argument("h5ad")
@@ -117,6 +123,11 @@ def main() -> None:
         anns = [annotations(sc.read_h5ad(f)) for f in args.h5ads]
         Path(args.out).write_text(json.dumps(palette(*anns), indent=1))
         print(f"wrote {args.out}")
+
+    elif args.cmd == "report":
+        from treeline.report import render_report
+
+        render_report(args.h5ads, args.out, args.title)
 
     elif args.cmd == "summary":
         import scanpy as sc
