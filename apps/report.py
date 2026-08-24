@@ -71,17 +71,17 @@ TEMPLATE = r"""<title>treeline 1619</title>
 <style>
 :root {
   --bg:#F5F7F3; --card:#FFFFFF; --surface:#ECF0E9; --ink:#1B2820; --muted:#5B6B60;
-  --line:#D3DCD2; --pine:#2F6B4F; --pine-soft:#DCE9E0; --rock:#75818C; --rock-soft:#E4E8EC;
+  --line:#D3DCD2; --pine:#2F6B4F; --rock:#75818C; --rock-soft:#E4E8EC;
   --lichen:#A9761F; --lichen-soft:#F1E7D2;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg:#0F1512; --card:#1A241E; --surface:#151D18; --ink:#E6ECE5; --muted:#93A398;
-  --line:#2A3630; --pine:#5FB08A; --pine-soft:#1E3229; --rock:#8B99A6; --rock-soft:#212A31;
+  --line:#2A3630; --pine:#5FB08A; --rock:#8B99A6; --rock-soft:#212A31;
   --lichen:#D6A34C; --lichen-soft:#322817;
 }}
 :root[data-theme="dark"] {
   --bg:#0F1512; --card:#1A241E; --surface:#151D18; --ink:#E6ECE5; --muted:#93A398;
-  --line:#2A3630; --pine:#5FB08A; --pine-soft:#1E3229; --rock:#8B99A6; --rock-soft:#212A31;
+  --line:#2A3630; --pine:#5FB08A; --rock:#8B99A6; --rock-soft:#212A31;
   --lichen:#D6A34C; --lichen-soft:#322817;
 }
 * { box-sizing:border-box; }

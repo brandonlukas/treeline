@@ -38,7 +38,6 @@ def test_descends_to_clear_winner():
     )
     assert call.path == ["A", "A1"]
     assert call.levels[0].share == 1.0  # A1's 2.0 pools up into A's subtree-max
-    assert call.final == "A1"
 
 
 def test_shared_descendant_votes_for_both_parents():
@@ -62,7 +61,7 @@ def test_root_below_threshold_is_unknown():
         M=[-1.0] * 12,
     )
     call = assign_cluster(DAG, PANELS, scores)
-    assert call.final == "Unknown" and call.path == []
+    assert call.path == []
 
 
 def test_gate_refuses_indiscriminable_siblings():

@@ -63,10 +63,7 @@ def nsforest_group(
 ) -> dict[str, dict]:
     """NS-Forest over one collapsed group. x: nuclei x candidate genes (dense)."""
     ids = sorted(clusters.unique())
-    medians = pd.DataFrame(
-        {g: 0.0 for g in genes} | {},
-        index=ids,
-    )
+    medians = pd.DataFrame(0.0, index=ids, columns=genes)
     for cl in ids:
         medians.loc[cl] = np.median(x[(clusters == cl).values], axis=0)
     scores = binary_scores(medians)

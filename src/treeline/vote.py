@@ -87,10 +87,6 @@ class Call:
     refused: str | None = None  # gate refusal message, if descent stopped on the gate
     overridden: str | None = None  # signed expert override that stopped/shaped descent
 
-    @property
-    def final(self) -> str:
-        return self.path[-1] if self.path else "Unknown"
-
 
 def load_overrides(path) -> list[dict]:
     """Overrides config: schema-enforced, every entry signed and justified."""
