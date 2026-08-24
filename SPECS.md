@@ -14,22 +14,28 @@ Status: **proof of concept, built** — the acceptance test below passes on the 
 `assets/` (modulo the documented endothelial deviation, known-hard #5). Comprehensive
 benchmarks, other datasets, other ontologies: non-goals until v2 (see v2 directions).
 
-## Scope: one prep step, three capabilities
+## Scope: one prep step, four capabilities
 
 1. **`derive-tree`** (prep, once per gene-set table): CL-labeled gene sets -> the frozen,
    dated CL DAG via OLS4. Explicit — never folded into annotate — because the dated
    artifact pins provenance (live API at derivation, frozen artifact at inference).
 2. **`annotate`**: scRNA-seq expression + cluster labels (one or more resolutions, any
    clustering method) + gene sets + frozen DAG -> multi-level annotation, as descriptive
-   as the ontology and marker sets support, falling back to NS-Forest `{gene}+` suffixes
-   above the treeline. Results are written back into the AnnData (per-cluster calls,
-   shares, refusals, suffixes in `.uns["treeline"]`; per-nucleus labels in `.obs`), so an
-   annotated `.h5ad` is self-contained.
-3. **`integrate`**: two or more *annotated* AnnDatas -> scANVI cell-type-aware
+   as the ontology and marker sets support. CL scoring is cheap, so multiple resolutions
+   cost little — and all of them feed the integrate prior. Results are written back into
+   the AnnData (per-cluster calls, shares, refusals in `.uns["treeline"]`; per-nucleus
+   labels in `.obs`), so an annotated `.h5ad` is self-contained.
+3. **`substates`**: NS-Forest `{gene}+` naming for clusters that collapse under one
+   label — the minimal necessary-and-sufficient marker set vs siblings, with its full
+   evidence (F-beta, PPV, recall, per-gene binary score / threshold / on-target).
+   Deliberately a separate verb: it is the costly step, and it is typically wanted
+   once, on the final clustering, after the CL labels look right — not on every
+   resolution annotate touches.
+4. **`integrate`**: two or more *annotated* AnnDatas -> scANVI cell-type-aware
    semi-supervised integration. Supervision is the tree-cut consensus prior (multiple
    supplied resolutions strengthen it; cross-resolution disagreement at the cut ->
    `Unknown`, scANVI's unlabeled class). Emits the joint latent and stops.
-4. **`colors`**: annotation output -> the hierarchical palette (same parent, same hue;
+5. **`colors`**: annotation output -> the hierarchical palette (same parent, same hue;
    depth darkens; substates ramp within the parent hue).
 
 **Treeline performs no clustering anywhere.** The user's loop: cluster (their method) ->
@@ -116,11 +122,14 @@ per-sample AnnData (user-clustered: >=1 categorical .obs clusterings)
         │
         v
 annotate ── score every DAG node's gene set, per-cluster hierarchical vote
-            (subtree-max, gated descent) -> multi-level labels per clustering;
-            NS-Forest {gene}+ substates where clusters collapse under one label;
-            everything written into .uns["treeline"] + .obs — self-contained h5ad.
+            (subtree-max, gated descent) -> multi-level labels per clustering,
+            written into .uns["treeline"] + .obs — self-contained h5ad.
             Cross-sample harmonization is free: CL paths ARE the shared vocabulary,
             per-sample cluster IDs never need to match.
+        │
+        v
+substates ─ (when wanted, on the clustering you settle on) NS-Forest {gene}+
+            names for clusters collapsing under one label, with full evidence
         │
         v
 integrate ─ (>=2 annotated samples) scANVI on the tree-cut consensus prior
@@ -230,9 +239,10 @@ handles them. The frozen JSON records the DAG, the OLS4 fetch date, and nothing 
    merge upward; cluster-the-clusters dendrogram.
 2. **Cross-sample harmonization** beyond exact path match (partial-depth matches, one
    sample resolving deeper than another). POC: group by longest common path prefix.
-3. **NS-Forest cost per slider position** — markers are per-clustering. POC: computed
-   for every supplied clustering (fine at this scale); lazy/cached computation matters
-   at atlas scale.
+3. **NS-Forest cost per slider position** — markers are per-clustering. Resolved by
+   design: `substates` is its own verb, run on the clustering(s) the user names —
+   typically once, at the final resolution — while the cheap CL vote covers every
+   resolution.
 4. **Displaying a DAG on a tree slider** — a multi-parent node (pericyte) appears under
    more than one parent. POC: allow the duplication in the report and mark it; do not
    fake a tree.

@@ -38,8 +38,8 @@ TOP_COMBO = 6
 BETA = 0.5
 MIN_CLUSTER = 20
 
-# structural/housekeeping genes and unnamed ids make bad *names*; they stay eligible
-# as combination members, just not as the displayed suffix
+# structural/housekeeping genes and unnamed ids make bad marker names; the minimal set
+# IS the substate's name now, so they are excluded from candidacy entirely
 BAD_NAME = re.compile(r"^(MT-|RPL|RPS|MRPL|MRPS|ENSG|MALAT1$|NEAT1$|ACTB$|TMSB4X$|B2M$|EEF1A1$)")
 
 
@@ -91,13 +91,32 @@ def nsforest_group(
             thresholds[j] = dt.tree_.threshold[0] if dt.tree_.node_count > 1 else 0.0
         best, best_f = (), -1.0
         for k in range(1, len(top) + 1):
-            for combo in combinations(top, k):
+            for combo in combinations(top, k):  # ties prefer the smaller combo
                 pred = np.all([x[:, j] > thresholds[j] for j in combo], axis=0)
                 f = fbeta_score(y, pred, beta=beta, zero_division=0)
                 if f > best_f:
                     best, best_f = combo, f
-        markers = [str(genes[j]) for j in sorted(best, key=lambda j: -s.values[j])]
-        results[str(cl)] = {"markers": markers, "fbeta": round(float(best_f), 3)}
+        # the evidence behind the name, NS-Forest v4's own metric set — never secret
+        pred = np.all([x[:, j] > thresholds[j] for j in best], axis=0)
+        tp = float((pred & y).sum())
+        ordered = sorted(best, key=lambda j: -s.values[j])
+        results[str(cl)] = {
+            "markers": [str(genes[j]) for j in ordered],
+            "fbeta": round(float(best_f), 3),
+            "ppv": round(tp / pred.sum(), 3) if pred.sum() else 0.0,
+            "recall": round(tp / y.sum(), 3) if y.sum() else 0.0,
+            "marker_stats": [
+                {
+                    "gene": str(genes[j]),
+                    "binary_score": round(float(s.values[j]), 3),
+                    "threshold": round(float(thresholds[j]), 3),
+                    # on-target fraction: how much of this gene's expression sits in the
+                    # target cluster (1 = expressed there only) — within the group
+                    "on_target": round(float(x[y, j].sum() / x[:, j].sum()), 3) if x[:, j].sum() else 0.0,
+                }
+                for j in ordered
+            ],
+        }
     return results
 
 
@@ -119,9 +138,11 @@ def suffixes_for(
             continue
         mask = clusters.isin(keep).values
         sub, subcl = adata[mask], clusters[mask]
-        # candidates: nonzero in >50% of nuclei of some member cluster (positive median)
+        # candidates: nonzero in >50% of nuclei of some member cluster (positive median),
+        # excluding genes that make bad names (the minimal set is the name)
         nz = pd.DataFrame.sparse.from_spmatrix(sub.X > 0, columns=sub.var_names).groupby(subcl.values).mean()
-        cand_mask = (nz > 0.5).any(axis=0).values
+        namable = np.array([not BAD_NAME.match(g) for g in sub.var_names])
+        cand_mask = (nz > 0.5).any(axis=0).values & namable
         x = np.asarray(sub[:, cand_mask].X.todense())
         genes = sub.var_names[cand_mask].to_numpy()
         group_res = nsforest_group(

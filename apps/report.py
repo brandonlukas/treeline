@@ -184,12 +184,24 @@ function labelKey(sample, res, cl, depth) {
   return labelAt(path, depth);
 }
 function colorFor(label) { return D.colors[label] || D.colors.Unknown; }
+// suffix palette keys stay on the lead gene; display names show the full minimal set
+const COMBO = {};
+for (const [s, byRes] of Object.entries(D.suffixes)) for (const [r, byCl] of Object.entries(byRes))
+  for (const [cl, e] of Object.entries(byCl)) {
+    const p = ((D.calls[s][r] || {})[cl] || {}).path || [];
+    if (p.length) COMBO[p.join(" > ") + " ⊕ " + e.gene] = e.markers.join("+");
+  }
+function statsTitle(e) {
+  const per = e.marker_stats.map(m =>
+    `${m.gene}: binary ${m.binary_score}, thr ${m.threshold}, on-target ${m.on_target}`).join(" | ");
+  return `necessary+sufficient vs siblings — Fbeta ${e.fbeta} · PPV ${e.ppv} · recall ${e.recall} | ${per}`;
+}
 function resOf(S) { return S.clusters[state.res] ? state.res : Object.keys(S.clusters)[0]; }
 function clusterColor(cl) { return `hsl(${(cl * 137.508) % 360} 55% 48%)`; }
 function leaf(label) {
   if (label.includes(" ⊕ ")) {
     const [p, g] = label.split(" ⊕ "); const seg = p.split(" > ");
-    return g + "+ " + seg[seg.length-1];
+    return (COMBO[label] || g) + "+ " + seg[seg.length-1];
   }
   const p = label.split(" > "); return p[p.length-1];
 }
@@ -263,7 +275,8 @@ function renderTree() {
       if (e) {
         const key = full + " ⊕ " + e.gene;
         subs[full] = subs[full] || {};
-        subs[full][key] = subs[full][key] || { gene: e.gene, n: 0, samples: new Set(), fbeta: e.fbeta };
+        subs[full][key] = subs[full][key] ||
+          { name: e.markers.join("+"), n: 0, samples: new Set(), fbeta: e.fbeta };
         subs[full][key].n += n; subs[full][key].samples.add(name);
       }
     }
@@ -278,8 +291,8 @@ function renderTree() {
       if (!(key in nuclei)) continue;  // not observed at this resolution
       const kcl = endClusters[key] ? ` · ${endClusters[key]} cluster${endClusters[key]>1?"s":""}` : "";
       let inner = walk(child, p);
-      for (const s of Object.values(subs[key] || {}).sort((a,b) => b.n - a.n)) {
-        inner += `<li>${node(colorFor(key + " ⊕ " + s.gene), s.gene + "+",
+      for (const [skey, s] of Object.entries(subs[key] || {}).sort((a,b) => b[1].n - a[1].n)) {
+        inner += `<li>${node(colorFor(skey), s.name + "+",
           `${s.n.toLocaleString()} · ${[...s.samples].join(", ")} · Fβ ${s.fbeta}`, "sub-node")}</li>`;
       }
       html += `<li>${node(colorFor(key), label, nuclei[key].toLocaleString() + kcl)}` +
@@ -313,7 +326,7 @@ function renderTables() {
       const refusal = c.refused ? `<div class="refused">⛔ ${c.refused}</div>` : "";
       const override = c.overridden ? `<div class="override">✍ ${c.overridden}</div>` : "";
       const e = suffixOf(name, r, cl);
-      const suffix = e ? ` <span class="chip suffix" title="NS-Forest markers: ${e.markers.join(" AND ")} · Fbeta=${e.fbeta}">${e.gene}+</span>` : "";
+      const suffix = e ? ` <span class="chip suffix" title="${statsTitle(e)}">${e.markers.join("+")}+</span>` : "";
       const genes = c.levels.map(lv => {
         const panel = (D.panels && D.panels[lv.node] || []).map(g => `<span class="gene">${g}</span>`).join("");
         return panel ? `<div class="genes"><b>${lv.node}</b> (${(lv.share*100).toFixed(0)}% agree): ${panel}</div>` : "";

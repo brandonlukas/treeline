@@ -13,7 +13,7 @@ from pathlib import Path
 
 import scanpy as sc
 
-from treeline.annotate import annotate
+from treeline.annotate import add_substates, annotate
 from treeline.scanvi import integrate
 from treeline.tree import load
 from treeline.vote import load_overrides
@@ -38,6 +38,7 @@ def main() -> None:
     dag = load(ASSETS / "cl_dag.json")
     annotate(joint, dag, GENE_SETS, [f"leiden_{r}" for r in RESOLUTIONS],
              load_overrides(ASSETS / "overrides.json"))
+    add_substates(joint, ["leiden_2.0"])  # costly: final resolution only
     for key in [f"leiden_{r}" for r in RESOLUTIONS]:
         print(f"  {key}: {joint.obs[key].nunique()} clusters -> "
               f"{joint.obs[f'treeline_{key}'].nunique()} labels")

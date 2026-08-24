@@ -3,6 +3,7 @@
     treeline derive-tree gene_sets.csv cl_dag.json
     treeline annotate in.h5ad --dag cl_dag.json --gene-sets gene_sets.csv \
         --clusters leiden_0.5 leiden_1.0 [--overrides overrides.json] -o annotated.h5ad
+    treeline substates annotated.h5ad --clusters leiden_2.0 -o annotated.h5ad
     treeline integrate a_annotated.h5ad b_annotated.h5ad -o joint.h5ad
     treeline colors annotated.h5ad [more.h5ad ...] -o palette.json
     treeline summary annotated.h5ad
@@ -34,12 +35,16 @@ def main() -> None:
     a.add_argument("--gene-sets", required=True)
     a.add_argument("--clusters", nargs="+", required=True, metavar="OBS_KEY")
     a.add_argument("--overrides")
-    a.add_argument("--no-suffixes", action="store_true")
     a.add_argument("--n-markers", type=int, default=None, help="top genes per gene set (default 10)")
     a.add_argument("--descend-agree", type=float, default=None, help="vote share to descend (default 0.5)")
     a.add_argument("--gate-overlap", type=float, default=None, help="gate: exclusive-gene overlap (default 0.5)")
     a.add_argument("--gate-score-r", type=float, default=None, help="gate: exclusive-score correlation (default 0.9)")
     a.add_argument("-o", "--out", required=True)
+
+    n = sub.add_parser("substates", help="NS-Forest {gene}+ substate naming — costly; run on the clustering you settle on")
+    n.add_argument("h5ad")
+    n.add_argument("--clusters", nargs="+", required=True, metavar="OBS_KEY")
+    n.add_argument("-o", "--out", required=True)
 
     i = sub.add_parser("integrate", help="annotated h5ads -> joint h5ad with the scANVI latent")
     i.add_argument("h5ads", nargs="+")
@@ -77,8 +82,17 @@ def main() -> None:
         kw = {k: v for k, v in [("n_markers", args.n_markers), ("descend_agree", args.descend_agree),
                                 ("gate_overlap", args.gate_overlap), ("gate_score_r", args.gate_score_r)]
               if v is not None}
-        annotate(adata, load(args.dag), args.gene_sets, args.clusters, overrides,
-                 suffixes=not args.no_suffixes, **kw)
+        annotate(adata, load(args.dag), args.gene_sets, args.clusters, overrides, **kw)
+        adata.write_h5ad(args.out)
+        print(f"wrote {args.out}")
+
+    elif args.cmd == "substates":
+        import scanpy as sc
+
+        from treeline.annotate import add_substates
+
+        adata = sc.read_h5ad(args.h5ad)
+        add_substates(adata, args.clusters)
         adata.write_h5ad(args.out)
         print(f"wrote {args.out}")
 
@@ -119,7 +133,10 @@ def main() -> None:
                 c = calls[cl]
                 chain = " > ".join(f"{lv['node']} {lv['share'] * 100:.0f}%" for lv in c["levels"]) or "Unknown"
                 sfx = ann["suffixes"].get(key, {}).get(cl)
-                extra = f"  [{sfx['gene']}+ Fbeta {sfx['fbeta']}]" if sfx else ""
+                extra = ""
+                if sfx:
+                    combo = "+".join(sfx["markers"])
+                    extra = f"  [{combo}+ Fbeta {sfx['fbeta']} PPV {sfx['ppv']} recall {sfx['recall']}]"
                 if c["refused"]:
                     extra += f"\n{'':>13}gate: {c['refused']}"
                 if c["overridden"]:
