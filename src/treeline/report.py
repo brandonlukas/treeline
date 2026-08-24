@@ -665,24 +665,25 @@ RES.forEach(r => {
 });
 if (!Object.values(D.samples).some(S => S.sample) && Object.keys(D.samples).length < 2)
   document.getElementById("sampleBtn").remove();
-if (Object.values(D.samples).some(S => S.srcIndex)) {
-  document.getElementById("srcCtl").style.display = "";
-  document.querySelectorAll("#srcSeg button").forEach(b => b.onclick = () => {
-    state.jointLabels = b.dataset.v;
-    document.querySelectorAll("#srcSeg button").forEach(x => x.className = ""); b.className = "on";
-    updateDepthMax(); render();
-  });
-}
-// depth is a dependency of label coloring: shown only while Color = labels
-function updateDepthVis() {
+document.querySelectorAll("#srcSeg button").forEach(b => b.onclick = () => {
+  state.jointLabels = b.dataset.v;
+  document.querySelectorAll("#srcSeg button").forEach(x => x.className = ""); b.className = "on";
+  updateDepthMax(); render();
+});
+// dependent controls: depth modifies label coloring only; the integrated-labels
+// source matters for labels and for tree/highlight semantics, but not in sample mode
+const srcAvailable = Object.values(D.samples).some(S => S.srcIndex);
+function updateCtlVis() {
   document.getElementById("depthCtl").style.display = state.colorBy === "label" ? "" : "none";
+  document.getElementById("srcCtl").style.display =
+    srcAvailable && state.colorBy !== "sample" ? "" : "none";
 }
 document.querySelectorAll("#colorSeg button").forEach(b => b.onclick = () => {
   state.colorBy = b.dataset.v;
   document.querySelectorAll("#colorSeg button").forEach(x => x.className = ""); b.className = "on";
-  updateDepthVis(); render();
+  updateCtlVis(); render();
 });
-updateDepthVis();
+updateCtlVis();
 const depthEl = document.getElementById("depth");
 updateDepthMax();
 depthEl.oninput = () => { state.depth = +depthEl.value; render(); };
