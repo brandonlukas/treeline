@@ -327,9 +327,18 @@ function draw(canvas, xs, ys, colorAt, matchAt) {
   canvas._px = px; canvas._py = py;
 }
 
+const SAMPLE_COLS = ["#2F6B4F", "#A9761F", "#75818C", "#5FB08A"];
+// one sample, one color — shared between the integrated view's per-nucleus coloring
+// and the uniform tint of that sample's own panel
+const SAMPLE_COLOR = {};
+for (const S of Object.values(D.samples))
+  (S.sampleNames || []).forEach((sn, i) => { SAMPLE_COLOR[sn] = SAMPLE_COLS[i % SAMPLE_COLS.length]; });
+for (const [name, S] of Object.entries(D.samples))
+  if (!S.integrated && !(name in SAMPLE_COLOR))
+    SAMPLE_COLOR[name] = SAMPLE_COLS[Object.keys(SAMPLE_COLOR).length % SAMPLE_COLS.length];
+
 function renderPlots() {
   const sel = activeSel();
-  const sampleCols = ["#2F6B4F", "#A9761F", "#75818C", "#5FB08A"];
   for (const [name, S] of Object.entries(D.samples)) {
     const r = resOf(S), cls = S.clusters[r];
     const useSrc = state.jointLabels === "source" && S.srcIndex;
@@ -362,7 +371,8 @@ function renderPlots() {
     meta.textContent = `${S.x.length.toLocaleString()} · ${resName(r)}` +
       (r !== state.res ? " (only)" : "") + (useSrc ? " · per-sample labels" : "");
     draw(els[name], S.x, S.y,
-      state.colorBy === "sample" && S.sample ? i => sampleCols[S.sample[i]]
+      state.colorBy === "sample"
+        ? (S.sample ? i => SAMPLE_COLS[S.sample[i] % SAMPLE_COLS.length] : () => SAMPLE_COLOR[name])
       : state.colorBy === "cluster" ? i => clusterColor(cls[i])
       : i => colorFor(labels[i]),
       matchAt);
@@ -621,7 +631,8 @@ RES.forEach(r => {
     b.className = "on"; render(); };
   resSeg.appendChild(b);
 });
-if (!Object.values(D.samples).some(S => S.sample)) document.getElementById("sampleBtn").remove();
+if (!Object.values(D.samples).some(S => S.sample) && Object.keys(D.samples).length < 2)
+  document.getElementById("sampleBtn").remove();
 if (Object.values(D.samples).some(S => S.srcIndex)) {
   document.getElementById("srcCtl").style.display = "";
   document.querySelectorAll("#srcSeg button").forEach(b => b.onclick = () => {
