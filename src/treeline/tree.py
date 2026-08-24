@@ -184,3 +184,13 @@ def descendants(dag: dict, label: str) -> set[str]:
             out.add(n)
             stack += dag["nodes"][n]["children"]
     return out
+
+
+def subdag(dag: dict, root: str) -> dict:
+    """The DAG restricted to `root` and its descendants (parents trimmed to match)."""
+    keep = descendants(dag, root)
+    nodes = {
+        n: {**dag["nodes"][n], "parents": [p for p in dag["nodes"][n]["parents"] if p in keep]}
+        for n in keep
+    }
+    return {**dag, "roots": [root], "nodes": nodes}

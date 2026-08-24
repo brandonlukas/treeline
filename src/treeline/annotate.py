@@ -13,6 +13,8 @@ from __future__ import annotations
 import dataclasses
 import json
 
+import pandas as pd
+
 from treeline.nsforest import suffixes_for
 from treeline.vote import (
     DESCEND_AGREE,
@@ -104,3 +106,9 @@ def add_substates(adata, cluster_keys: list[str], **nsforest_kwargs):
 def annotations(adata) -> dict:
     """Decode `.uns['treeline']` from an annotated AnnData."""
     return json.loads(adata.uns[UNS_KEY])
+
+
+def coarse_labels(adata, key: str) -> pd.Series:
+    """Class = the path component below the DAG root; root-stops keep the root label."""
+    parts = adata.obs[f"treeline_{key}"].astype(str).str.split(" > ")
+    return parts.map(lambda p: p[1] if len(p) > 1 else p[0])
