@@ -146,11 +146,17 @@ def suffixes_for(
             x, genes, subcl.reset_index(drop=True),
             n_trees=n_trees, top_gini=top_gini, top_combo=top_combo, beta=beta,
         )
+        # names are unique within a group; a contested gene goes to the cluster with the
+        # stronger evidence, and an unnameable cluster is reported, never silently skipped
         used: set[str] = set()
-        for cl in keep:
+        for cl in sorted(keep, key=lambda c: -group_res[c]["fbeta"]):
             r = group_res[cl]
-            name = next((g for g in r["markers"] if not BAD_NAME.match(g) and g not in used), None)
+            name = next((g for g in r["markers"] if g not in used), None)
             if name is None:
+                print(
+                    f"[substates] cluster {cl} left unnamed: every gene in its minimal set "
+                    f"({'+'.join(r['markers'])}, Fbeta {r['fbeta']}) is claimed by a stronger sibling"
+                )
                 continue
             used.add(name)
             out[cl] = {"gene": name, **r}
