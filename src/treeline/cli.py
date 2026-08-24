@@ -62,6 +62,7 @@ def main() -> None:
     r = sub.add_parser("report", help="annotated h5ads -> static HTML report (slider, tree, tables)")
     r.add_argument("h5ads", nargs="+")
     r.add_argument("--title", help="report title (default: derived from filenames)")
+    r.add_argument("--basis", default="X_umap", help="2-D obsm embedding to plot (default X_umap)")
     r.add_argument("-o", "--out", required=True)
 
     m = sub.add_parser("summary", help="print an annotated h5ad's labels, per clustering")
@@ -127,7 +128,7 @@ def main() -> None:
     elif args.cmd == "report":
         from treeline.report import render_report
 
-        render_report(args.h5ads, args.out, args.title)
+        render_report(args.h5ads, args.out, args.title, args.basis)
 
     elif args.cmd == "summary":
         import scanpy as sc
