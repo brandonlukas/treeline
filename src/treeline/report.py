@@ -376,6 +376,10 @@ function renderTree() {
     }
   }
   const pin = state.sel;
+  // the tree grows and shrinks with the depth slider: nodes deeper than the current
+  // depth stay collapsed; substates unfold only at the above-the-treeline stop
+  const maxShow = Math.min(state.depth, D.maxDepth);
+  const showSubs = state.depth > D.maxDepth;
   const node = (color, nm, ct, cls, attrs) =>
     `<span class="node ${cls||""}" ${attrs||""}><i style="background:${color}"></i><span class="nm">${nm}</span>` +
     `<span class="ct">${ct}</span></span>`;
@@ -383,11 +387,11 @@ function renderTree() {
     let html = "";
     for (const [label, child] of Object.entries(sub)) {
       const p = [...prefix, label], key = p.join(" > ");
-      if (!(key in nuclei)) continue;
+      if (!(key in nuclei) || p.length > maxShow) continue;
       const kcl = endClusters[key] ? ` · ${endClusters[key]}cl` : "";
       let cls = pin && pin.type === "node" && pin.path.join(" > ") === key ? "pin" : "";
       let inner = walk(child, p);
-      for (const [skey, s] of Object.entries(subs[key] || {}).sort((a,b) => b[1].n - a[1].n)) {
+      if (showSubs) for (const [skey, s] of Object.entries(subs[key] || {}).sort((a,b) => b[1].n - a[1].n)) {
         let scls = "sub-node";
         if (pin && pin.type === "substate" && pin.key === skey) scls += " pin";
         inner += `<li>${node(colorFor(skey), s.name + "+", `${s.n.toLocaleString()} · Fβ ${s.fbeta}`,
