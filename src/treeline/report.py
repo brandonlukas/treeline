@@ -29,7 +29,7 @@ from treeline.harmonize import observed_paths, path_tree
 def build_data(paths: list[Path], basis: str = "X_umap") -> dict:
     import scanpy as sc
 
-    samples, calls, suffixes, anns = {}, {}, {}, []
+    samples, calls, suffixes, anns, obs_names = {}, {}, {}, [], {}
     for f in paths:
         a = sc.read_h5ad(f)
         name = Path(f).stem.removesuffix("_annotated")
@@ -57,6 +57,20 @@ def build_data(paths: list[Path], basis: str = "X_umap") -> dict:
         samples[name] = entry
         calls[name] = ann["calls"]
         suffixes[name] = ann["suffixes"]
+        obs_names[name] = a.obs_names.tolist()
+    # an integrated view whose source samples are also loaded gets a per-nucleus index
+    # into its source view, so the joint embedding can be colored by per-sample labels
+    for name, entry in samples.items():
+        if not entry.get("integrated") or "sampleNames" not in entry:
+            continue
+        if not all(s in samples for s in entry["sampleNames"]):
+            continue
+        pos = {s: {n: i for i, n in enumerate(obs_names[s])} for s in entry["sampleNames"]}
+        src = []
+        for i, n in enumerate(obs_names[name]):
+            s = entry["sampleNames"][entry["sample"][i]]
+            src.append(pos[s].get(n.removesuffix(f"-{s}"), -1))
+        entry["srcIndex"] = src
     paths_seen = observed_paths(calls)
     panels: dict = {}
     for ann in anns:
@@ -214,6 +228,8 @@ footer { color:var(--muted); font-size:0.78rem; border-top:1px solid var(--line)
         <input type="range" id="depth" min="1" value="2"></div>
       <div class="ctl"><div class="lab">Color</div><div class="seg" id="colorSeg">
         <button data-v="label" class="on">labels</button><button data-v="cluster">clusters</button><button data-v="sample" id="sampleBtn">sample</button></div></div>
+      <div class="ctl" id="srcCtl" style="display:none"><div class="lab">Integrated labels</div><div class="seg" id="srcSeg">
+        <button data-v="joint" class="on">joint</button><button data-v="source">per-sample</button></div></div>
       <div class="ctl"><div class="lab">The tree</div><div id="treeview"></div></div>
     </aside>
     <main>
@@ -232,7 +248,7 @@ footer { color:var(--muted); font-size:0.78rem; border-top:1px solid var(--line)
 const D = __DATA__;
 const RES = [...new Set(Object.values(D.samples).flatMap(S => Object.keys(S.clusters)))];
 const HAS_SUFFIX = Object.values(D.suffixes || {}).some(byRes => Object.values(byRes).some(m => Object.keys(m).length));
-let state = { res: RES[0], depth: 2, colorBy: "label", hover: null, sel: null };
+let state = { res: RES[0], depth: 2, colorBy: "label", jointLabels: "joint", hover: null, sel: null };
 const els = {};
 
 function pathOf(sample, res, cl) { const c = D.calls[sample][res][String(cl)]; return c ? c.path : []; }
@@ -316,16 +332,40 @@ function renderPlots() {
   const sampleCols = ["#2F6B4F", "#A9761F", "#75818C", "#5FB08A"];
   for (const [name, S] of Object.entries(D.samples)) {
     const r = resOf(S), cls = S.clusters[r];
-    const labels = cls.map(c => labelKey(name, r, c, state.depth));
+    const useSrc = state.jointLabels === "source" && S.srcIndex;
+    // per-sample mode: each joint nucleus carries the label it earned in its own sample
+    let labels, matchAt = null;
+    if (useSrc) {
+      const srcRes = {}, memo = {};
+      for (const sn of S.sampleNames) srcRes[sn] = resOf(D.samples[sn]);
+      labels = cls.map((c, i) => {
+        const sn = S.sampleNames[S.sample[i]], si = S.srcIndex[i];
+        if (si < 0) return "Unknown";
+        return labelKey(sn, srcRes[sn], D.samples[sn].clusters[srcRes[sn]][si], state.depth);
+      });
+      if (sel) matchAt = i => {
+        const sn = S.sampleNames[S.sample[i]], si = S.srcIndex[i];
+        if (si < 0) return false;
+        const sc = D.samples[sn].clusters[srcRes[sn]][si], k = sn + "|" + sc;
+        if (!(k in memo)) memo[k] = matchesSel(sel, sn, srcRes[sn], sc);
+        return memo[k];
+      };
+    } else {
+      labels = cls.map(c => labelKey(name, r, c, state.depth));
+      if (sel) {
+        const matchByCl = {};
+        for (const c of new Set(cls)) matchByCl[c] = matchesSel(sel, name, r, c);
+        matchAt = i => matchByCl[cls[i]];
+      }
+    }
     const meta = els[name].parentElement.querySelector(".pmeta");
-    meta.textContent = `${S.x.length.toLocaleString()} · ${resName(r)}` + (r !== state.res ? " (only)" : "");
-    const matchByCl = {};
-    if (sel) for (const c of new Set(cls)) matchByCl[c] = matchesSel(sel, name, r, c);
+    meta.textContent = `${S.x.length.toLocaleString()} · ${resName(r)}` +
+      (r !== state.res ? " (only)" : "") + (useSrc ? " · per-sample labels" : "");
     draw(els[name], S.x, S.y,
       state.colorBy === "sample" && S.sample ? i => sampleCols[S.sample[i]]
       : state.colorBy === "cluster" ? i => clusterColor(cls[i])
       : i => colorFor(labels[i]),
-      sel ? i => matchByCl[cls[i]] : null);
+      matchAt);
   }
 }
 
@@ -582,6 +622,13 @@ RES.forEach(r => {
   resSeg.appendChild(b);
 });
 if (!Object.values(D.samples).some(S => S.sample)) document.getElementById("sampleBtn").remove();
+if (Object.values(D.samples).some(S => S.srcIndex)) {
+  document.getElementById("srcCtl").style.display = "";
+  document.querySelectorAll("#srcSeg button").forEach(b => b.onclick = () => {
+    state.jointLabels = b.dataset.v;
+    document.querySelectorAll("#srcSeg button").forEach(x => x.className = ""); b.className = "on"; render();
+  });
+}
 document.querySelectorAll("#colorSeg button").forEach(b => b.onclick = () => {
   state.colorBy = b.dataset.v;
   document.querySelectorAll("#colorSeg button").forEach(x => x.className = ""); b.className = "on"; render();
