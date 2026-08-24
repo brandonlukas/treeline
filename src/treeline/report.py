@@ -164,8 +164,6 @@ footer { color:var(--muted); font-size:0.82rem; border-top:1px solid var(--line)
 .tree .node i { width:10px; height:10px; border-radius:3px; flex:none; }
 .tree .node .nm { font-weight:600; }
 .tree .node .ct { color:var(--muted); font-size:0.72rem; font-variant-numeric:tabular-nums; }
-.tree .node.at-cut { border-bottom:2px dashed var(--lichen); border-radius:5px 5px 0 0; }
-.tree .node.below-cut { opacity:0.38; }
 .tree .sub-node .nm { font-family:"IBM Plex Mono",monospace; font-weight:500; font-size:0.76rem; }
 .tree .sub-node { border:1px solid var(--lichen); border-radius:6px; padding:0 6px; margin:1px 0; }
 /* tooltip + drawer */
@@ -201,7 +199,6 @@ footer { color:var(--muted); font-size:0.82rem; border-top:1px solid var(--line)
   <div class="layout">
     <aside id="rail">
       <div id="railCap">The tree</div>
-      <div id="railCut"></div>
       <div id="railHint">hover: highlight · click: pin/unpin · esc: clear</div>
       <div id="treeview"></div>
     </aside>
@@ -359,21 +356,25 @@ function renderTree() {
       }
       const full = path.join(" > ");
       endClusters[full] = (endClusters[full]||0)+1;
-      const e = suffixOf(name, r, cl);
-      if (e) {
-        const key = full + " ⊕ " + e.gene;
-        subs[full] = subs[full] || {};
-        const cur = subs[full][key] || { name: e.markers.join("+"), n: 0, fbeta: e.fbeta, ref: null, refN: 0 };
-        cur.n += n;
-        if (n > cur.refN) { cur.ref = [name, r, String(cl)]; cur.refN = n; }
-        subs[full][key] = cur;
-      }
     }
   }
-  const effDepth = Math.min(state.depth, D.maxDepth);
-  const aboveLine = state.depth > D.maxDepth;
-  document.getElementById("railCut").textContent =
-    aboveLine ? "— above the treeline: substates —" : `— treeline at depth ${effDepth} —`;
+  // substates come from every view (they may live only on the integrated object)
+  for (const [name, S] of Object.entries(D.samples)) {
+    const r = resOf(S), sizes = {};
+    S.clusters[r].forEach(c => sizes[c] = (sizes[c]||0)+1);
+    for (const [cl, e] of Object.entries((D.suffixes[name] || {})[r] || {})) {
+      const path = pathOf(name, r, cl);
+      if (!path.length) continue;
+      const full = path.join(" > ");
+      if (!(full in nuclei)) continue;
+      const key = full + " ⊕ " + e.gene, n = sizes[cl] || 0;
+      subs[full] = subs[full] || {};
+      const cur = subs[full][key] || { name: e.markers.join("+"), n: 0, fbeta: e.fbeta, ref: null, refN: 0 };
+      cur.n += n;
+      if (n > cur.refN) { cur.ref = [name, r, String(cl)]; cur.refN = n; }
+      subs[full][key] = cur;
+    }
+  }
   const pin = state.sel;
   const node = (color, nm, ct, cls, attrs) =>
     `<span class="node ${cls||""}" ${attrs||""}><i style="background:${color}"></i><span class="nm">${nm}</span>` +
@@ -381,14 +382,13 @@ function renderTree() {
   function walk(sub, prefix) {
     let html = "";
     for (const [label, child] of Object.entries(sub)) {
-      const p = [...prefix, label], key = p.join(" > "), depth = p.length;
+      const p = [...prefix, label], key = p.join(" > ");
       if (!(key in nuclei)) continue;
       const kcl = endClusters[key] ? ` · ${endClusters[key]}cl` : "";
-      let cls = depth === effDepth && !aboveLine ? "at-cut" : depth > effDepth ? "below-cut" : "";
-      if (pin && pin.type === "node" && pin.path.join(" > ") === key) cls += " pin";
+      let cls = pin && pin.type === "node" && pin.path.join(" > ") === key ? "pin" : "";
       let inner = walk(child, p);
       for (const [skey, s] of Object.entries(subs[key] || {}).sort((a,b) => b[1].n - a[1].n)) {
-        let scls = "sub-node" + (aboveLine ? "" : " below-cut");
+        let scls = "sub-node";
         if (pin && pin.type === "substate" && pin.key === skey) scls += " pin";
         inner += `<li>${node(colorFor(skey), s.name + "+", `${s.n.toLocaleString()} · Fβ ${s.fbeta}`,
           scls, `data-skey="${encodeURIComponent(skey)}" data-ref="${encodeURIComponent(s.ref.join("|"))}"`)}</li>`;

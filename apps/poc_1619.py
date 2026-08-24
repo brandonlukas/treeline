@@ -14,7 +14,7 @@ from pathlib import Path
 
 import scanpy as sc
 
-from treeline.annotate import add_substates, annotate
+from treeline.annotate import annotate
 from treeline.tree import load
 from treeline.vote import load_overrides
 
@@ -40,9 +40,9 @@ def main() -> None:
         sc.tl.umap(adata)
         for res in RESOLUTIONS:
             sc.tl.leiden(adata, resolution=res, key_added=f"leiden_{res}", flavor="igraph", n_iterations=2)
+        # no substates per sample: NS-Forest runs once, on the integrated object
         annotate(adata, dag, ASSETS / "cellguide_uterus_gene_sets_2026-08-22.csv",
                  [f"leiden_{r}" for r in RESOLUTIONS], overrides)
-        add_substates(adata, ["leiden_2.0"])  # costly: final resolution only
         for key in [f"leiden_{r}" for r in RESOLUTIONS]:
             print(f"  {key}: {adata.obs[key].nunique()} clusters -> "
                   f"{adata.obs[f'treeline_{key}'].nunique()} labels")
