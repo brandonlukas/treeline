@@ -27,46 +27,47 @@ def main() -> None:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     d = sub.add_parser("derive-tree", help="gene-set CSV -> frozen, dated CL DAG (via EBI OLS4)")
-    d.add_argument("gene_sets")
-    d.add_argument("out")
+    d.add_argument("gene_sets", help="CL-labeled gene-set CSV (CellGuide export: 'Gene Set Name', 'Gene Symbol')")
+    d.add_argument("out", help="frozen DAG JSON, the --dag input to annotate")
 
     a = sub.add_parser("annotate", help="multi-level annotation, written into the AnnData")
-    a.add_argument("h5ad")
-    a.add_argument("--dag", required=True)
-    a.add_argument("--gene-sets", required=True)
-    a.add_argument("--clusters", nargs="+", required=True, metavar="OBS_KEY")
-    a.add_argument("--overrides")
+    a.add_argument("h5ad", help="clustered AnnData; X log-normalized, cluster labels in .obs")
+    a.add_argument("--dag", required=True, help="DAG JSON from derive-tree")
+    a.add_argument("--gene-sets", required=True, help="the same gene-set CSV given to derive-tree")
+    a.add_argument("--clusters", nargs="+", required=True, metavar="OBS_KEY",
+                   help=".obs columns to annotate (cheap: pass every resolution you have)")
+    a.add_argument("--overrides", help="expert overrides JSON: signed {node, decision, justification, author, date} entries")
     a.add_argument("--n-markers", type=int, default=None, help="top genes per gene set (default 10)")
     a.add_argument("--descend-agree", type=float, default=None, help="vote share to descend (default 0.5)")
     a.add_argument("--gate-overlap", type=float, default=None, help="gate: exclusive-gene overlap (default 0.5)")
     a.add_argument("--gate-score-r", type=float, default=None, help="gate: exclusive-score correlation (default 0.9)")
-    a.add_argument("-o", "--out", required=True)
+    a.add_argument("-o", "--out", required=True, help="annotated h5ad (self-contained; input to every other verb)")
 
     n = sub.add_parser("substates", help="NS-Forest {gene}+ substate naming — costly; run on the clustering you settle on")
-    n.add_argument("h5ad")
-    n.add_argument("--clusters", nargs="+", required=True, metavar="OBS_KEY")
-    n.add_argument("-o", "--out", required=True)
+    n.add_argument("h5ad", help="annotated h5ad from annotate")
+    n.add_argument("--clusters", nargs="+", required=True, metavar="OBS_KEY", help="annotated clusterings to name substates in")
+    n.add_argument("-o", "--out", required=True, help="output h5ad (may equal the input)")
 
     i = sub.add_parser("integrate", help="annotated h5ads -> joint h5ad with the scANVI latent")
-    i.add_argument("h5ads", nargs="+")
+    i.add_argument("h5ads", nargs="+", help="two or more annotated h5ads with layers['counts']; sample name = stem minus _annotated")
     i.add_argument("--supervise-depth", type=int, default=None, help="tree cut for the prior (default 2)")
     i.add_argument("--n-latent", type=int, default=None, help="latent dimensions (default 30)")
     i.add_argument("--classification-ratio", type=float, default=None,
                    help="label pull vs mixing (default 50; a judgment call when sample==condition)")
-    i.add_argument("-o", "--out", required=True)
+    i.add_argument("-o", "--out", required=True, help="joint h5ad with the latent in obsm['X_treeline']")
 
     c = sub.add_parser("colors", help="annotated h5ads -> hierarchical label palette (JSON)")
-    c.add_argument("h5ads", nargs="+")
-    c.add_argument("-o", "--out", required=True)
+    c.add_argument("h5ads", nargs="+", help="annotated h5ads")
+    c.add_argument("-o", "--out", required=True, help="JSON {label: hex}; siblings share a hue, substates are tints")
 
     r = sub.add_parser("report", help="annotated h5ads -> static HTML report (slider, tree, tables)")
-    r.add_argument("h5ads", nargs="+")
+    r.add_argument("h5ads", nargs="+", help="annotated h5ads with a 2-D embedding; sample name = stem minus _annotated")
     r.add_argument("--title", help="report title (default: derived from filenames)")
     r.add_argument("--basis", default="X_umap", help="2-D obsm embedding to plot (default X_umap)")
-    r.add_argument("-o", "--out", required=True)
+    r.add_argument("-o", "--out", required=True, help="self-contained HTML file")
 
     m = sub.add_parser("summary", help="print an annotated h5ad's labels, per clustering")
-    m.add_argument("h5ad")
+    m.add_argument("h5ad", help="annotated h5ad; prints each cluster's path, shares, substate markers, gate refusals and overrides")
 
     args = p.parse_args()
 
@@ -84,8 +85,8 @@ def main() -> None:
         from treeline.tree import load
         from treeline.vote import load_overrides
 
+        overrides = load_overrides(args.overrides) if args.overrides else []  # before the slow read
         adata = sc.read_h5ad(args.h5ad)
-        overrides = load_overrides(args.overrides) if args.overrides else []
         kw = {k: v for k, v in [("n_markers", args.n_markers), ("descend_agree", args.descend_agree),
                                 ("gate_overlap", args.gate_overlap), ("gate_score_r", args.gate_score_r)]
               if v is not None}
@@ -106,12 +107,13 @@ def main() -> None:
     elif args.cmd == "integrate":
         import scanpy as sc
 
+        from treeline.annotate import sample_names
         from treeline.scanvi import integrate
 
         kw = {k: v for k, v in [("supervise_depth", args.supervise_depth), ("n_latent", args.n_latent),
                                 ("classification_ratio", args.classification_ratio)]
               if v is not None}
-        joint = integrate({Path(f).stem.removesuffix("_annotated"): sc.read_h5ad(f) for f in args.h5ads}, **kw)
+        joint = integrate({n: sc.read_h5ad(f) for n, f in sample_names(args.h5ads).items()}, **kw)
         joint.write_h5ad(args.out)
         print(f"wrote {args.out} — recluster obsm['X_treeline'] and resubmit through annotate")
 

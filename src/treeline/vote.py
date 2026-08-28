@@ -94,7 +94,7 @@ def load_overrides(path) -> list[dict]:
     from pathlib import Path
 
     if not Path(path).exists():
-        return []
+        raise FileNotFoundError(f"overrides file {path} does not exist (omit --overrides to run with none)")
     entries = json.loads(Path(path).read_text())
     for e in entries:
         missing = {"node", "decision", "justification", "author", "date"} - e.keys()

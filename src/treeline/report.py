@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from treeline.annotate import annotations
+from treeline.annotate import annotations, sample_names
 from treeline.colors import palette
 from treeline.harmonize import observed_paths, path_tree
 
@@ -30,9 +30,8 @@ def build_data(paths: list[Path], basis: str = "X_umap") -> dict:
     import scanpy as sc
 
     samples, calls, suffixes, anns, obs_names = {}, {}, {}, [], {}
-    for f in paths:
+    for name, f in sample_names(paths).items():
         a = sc.read_h5ad(f)
-        name = Path(f).stem.removesuffix("_annotated")
         if basis not in a.obsm:
             raise ValueError(
                 f"{f}: no 2-D embedding at obsm[{basis!r}] — treeline computes no embedding "
@@ -46,7 +45,7 @@ def build_data(paths: list[Path], basis: str = "X_umap") -> dict:
         entry = {
             "x": [round(float(v), 2) for v in um[:, 0]],
             "y": [round(float(v), 2) for v in um[:, 1]],
-            "clusters": {k: a.obs[k].astype(str).astype(int).tolist() for k in keys},
+            "clusters": {k: a.obs[k].astype(str).tolist() for k in keys},
         }
         if "treeline_integrate" in a.uns:  # provenance stamp, not a guess
             entry["integrated"] = True
@@ -88,7 +87,7 @@ def build_data(paths: list[Path], basis: str = "X_umap") -> dict:
 
 def render_report(paths: list, out, title: str | None = None, basis: str = "X_umap") -> None:
     paths = [Path(p) for p in paths]
-    title = title or "treeline · " + ", ".join(p.stem.removesuffix("_annotated") for p in paths)
+    title = title or "treeline · " + ", ".join(sample_names(paths))
     data = build_data(paths, basis)
     html = TEMPLATE.replace("__TITLE__", title).replace("__DATA__", json.dumps(data, separators=(",", ":")))
     Path(out).write_text(html)

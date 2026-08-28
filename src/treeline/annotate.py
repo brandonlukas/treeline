@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+from pathlib import Path
 
 import pandas as pd
 
@@ -112,3 +113,15 @@ def coarse_labels(adata, key: str) -> pd.Series:
     """Class = the path component below the DAG root; root-stops keep the root label."""
     parts = adata.obs[f"treeline_{key}"].astype(str).str.split(" > ")
     return parts.map(lambda p: p[1] if len(p) > 1 else p[0])
+
+
+def sample_names(paths) -> dict[str, Path]:
+    """Sample name for each h5ad = file stem minus `_annotated`; refuses collisions
+    (two `annotated.h5ad` in different dirs would silently merge)."""
+    names = {}
+    for f in paths:
+        name = Path(f).stem.removesuffix("_annotated")
+        if name in names:
+            raise ValueError(f"sample name {name!r} from both {names[name]} and {f} — rename one file")
+        names[name] = Path(f)
+    return names

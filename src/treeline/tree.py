@@ -58,6 +58,11 @@ def set_names_from_csv(csv_path: str | Path) -> list[str]:
     import pandas as pd
 
     df = pd.read_csv(csv_path)
+    if "Gene Set Name" not in df.columns:
+        raise ValueError(
+            f"gene-set table {csv_path} has no 'Gene Set Name' column; found {list(df.columns)}. "
+            "Expected a CellGuide-style CSV (set name on each set's first row, blank rows fill down)."
+        )
     names = df["Gene Set Name"].ffill().str.removesuffix(" - marker genes")
     return list(dict.fromkeys(names))
 

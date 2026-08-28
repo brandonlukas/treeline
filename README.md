@@ -90,7 +90,7 @@ leiden_2.0 — 22 clusters
 
 The annotated `.h5ad` is self-contained: per-nucleus labels in
 `obs["treeline_<cluster_key>"]`, per-cluster calls / shares / refusals in
-`uns["treeline"]` (a JSON string — decode with `treeline.annotate.annotations(adata)`).
+`uns["treeline"]` (a JSON string — decode with `treeline.annotations(adata)`).
 
 ### Substates and integration
 
@@ -129,7 +129,8 @@ treeline report a_annotated.h5ad b_annotated.h5ad joint_annotated.h5ad -o report
 
 ## Python API
 
-Every CLI verb is one function; the drivers in `apps/` are worked examples.
+Every CLI verb is one function; the drivers in `apps/` are worked examples. The
+`annotate`/`tree` functions below are also re-exported from `treeline` itself.
 
 | verb | function | notes |
 |---|---|---|
@@ -165,7 +166,8 @@ inside a class (SMC substates, fibroblast substates) hides in genes global HVG s
 never keeps. treeline does not do within-class reclustering — a version inside the tool
 mislabeled, because re-running the vote from the DAG root inside a class let weak
 subclusters stall at generic ancestors. It's standard scanpy composition, so do it
-yourself; the pattern from a real pipeline:
+yourself; the pattern from a real pipeline (needs `pip install harmonypy`, not a treeline
+dependency):
 
 ```python
 import harmonypy, numpy as np, scanpy as sc
