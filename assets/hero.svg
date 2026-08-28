@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" width="800" height="460" role="img" aria-label="Elevation diagram. An annotation path climbs a mountain from the Cell Ontology root 'cell' through 'eukaryotic cell' (vote 0.99) and 'smooth muscle cell' (vote 0.74) to 'uterine smooth muscle cell' (vote 0.91), where a dashed treeline marks the deepest term the evidence supports. Siblings not taken are shown in grey with their runner-up shares: endothelial cell 0.21, vascular associated smooth muscle cell 0.09. Above the treeline an ochre marker names the PRKCH+LIFR+ substate found by NS-Forest, F-beta 0.89 — named by data, not ontology.">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#131C21"/><stop offset="1" stop-color="#0F1512"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="460" fill="url(#sky)"/>
+
+  <!-- ridges -->
+  <polygon points="0,460 0,320 120,260 230,300 340,215 430,250 560,150 700,215 800,180 800,460" fill="#1D2A24"/>
+  <polygon points="0,460 0,432 80,411 230,341 380,256 520,171 640,96 720,150 800,215 800,460" fill="#2B3D33"/>
+
+  <g font-family="ui-monospace,Menlo,Consolas,'Liberation Mono',monospace">
+    <!-- legend -->
+    <g font-size="12" fill="#93A398">
+      <circle cx="20" cy="24" r="5" fill="#5FB08A"/>
+      <text x="32" y="28">descent taken · share of the cluster's nuclei voting for it</text>
+      <circle cx="20" cy="46" r="5" fill="none" stroke="#8B99A6" stroke-width="1.8"/>
+      <text x="32" y="50">sibling not taken · runner-up share</text>
+      <circle cx="20" cy="68" r="4" fill="#D6A34C"/>
+      <text x="32" y="72">substate above the treeline · NS-Forest {gene}+</text>
+    </g>
+
+    <!-- treeline -->
+    <line x1="0" y1="140" x2="800" y2="140" stroke="#E6ECE5" stroke-width="1.5" stroke-dasharray="7 6" opacity="0.6"/>
+    <text x="14" y="130" font-size="13" font-weight="700" fill="#E6ECE5" opacity="0.85" letter-spacing="2">THE TREELINE</text>
+    <text x="14" y="158" font-size="12" fill="#93A398">every step earned ≥ 0.50 · no deeper CL term</text>
+
+    <!-- siblings not taken (same elevation as the node they lost to) -->
+    <line x1="380" y1="250" x2="310" y2="250" stroke="#8B99A6" stroke-width="1.8" stroke-dasharray="4 4"/>
+    <circle cx="305" cy="250" r="6" fill="#0F1512" stroke="#8B99A6" stroke-width="1.8"/>
+    <text x="293" y="254" font-size="12" fill="#8B99A6" text-anchor="end">endothelial cell · 0.21</text>
+
+    <line x1="520" y1="165" x2="450" y2="165" stroke="#8B99A6" stroke-width="1.8" stroke-dasharray="4 4"/>
+    <circle cx="445" cy="165" r="6" fill="#0F1512" stroke="#8B99A6" stroke-width="1.8"/>
+    <text x="433" y="169" font-size="12" fill="#8B99A6" text-anchor="end">vascular SMC · 0.09</text>
+
+    <!-- the descent -->
+    <polyline points="80,405 230,335 380,250 520,165" fill="none" stroke="#5FB08A" stroke-width="2.5"/>
+
+    <circle cx="80" cy="405" r="7" fill="#5FB08A"/>
+    <text x="96" y="410" font-size="15" fill="#E6ECE5">cell</text>
+    <text x="96" y="428" font-size="12" fill="#93A398">root of the CL DAG</text>
+
+    <circle cx="230" cy="335" r="7" fill="#5FB08A"/>
+    <text x="246" y="352" font-size="15" fill="#E6ECE5">eukaryotic cell</text>
+    <text x="246" y="370" font-size="12" fill="#93A398">vote 0.99</text>
+
+    <circle cx="380" cy="250" r="7" fill="#5FB08A"/>
+    <text x="396" y="267" font-size="15" fill="#E6ECE5">smooth muscle cell</text>
+    <text x="396" y="285" font-size="12" fill="#93A398">vote 0.74</text>
+
+    <circle cx="520" cy="165" r="8" fill="#5FB08A" stroke="#0F1512" stroke-width="2"/>
+    <text x="536" y="160" font-size="15" font-weight="700" fill="#E6ECE5">uterine smooth muscle cell</text>
+    <text x="536" y="178" font-size="12" fill="#93A398">vote 0.91 · label stops here</text>
+
+    <!-- substate above the line -->
+    <line x1="527" y1="160" x2="583" y2="124" stroke="#D6A34C" stroke-width="1.5" stroke-dasharray="2 4" opacity="0.8"/>
+    <circle cx="588" cy="121" r="5" fill="#D6A34C"/>
+    <text x="602" y="110" font-size="14" fill="#D6A34C">PRKCH+LIFR+ substate</text>
+    <text x="602" y="128" font-size="12" fill="#D6A34C" opacity="0.85">NS-Forest · F-beta 0.89</text>
+
+    <!-- provenance -->
+    <text x="790" y="448" font-size="11" fill="#93A398" opacity="0.8" text-anchor="end">joint cluster 0 · 2,099 nuclei · leiomyoma + myometrium 1619</text>
+  </g>
+</svg>
