@@ -176,6 +176,11 @@ def derive(set_names: list[str]) -> dict:
     }
 
 
+def derive_tree(gene_sets_csv: str | Path) -> dict:
+    """The derive-tree verb: gene-set CSV -> DAG dict (network; save it with json.dump)."""
+    return derive(set_names_from_csv(gene_sets_csv))
+
+
 def load(path: str | Path) -> dict:
     return json.loads(Path(path).read_text())
 

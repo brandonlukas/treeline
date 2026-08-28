@@ -58,20 +58,26 @@ You need two things treeline does **not** make for you:
    open your tissue and "export gene set annotations". Any CSV with `Gene Set Name` /
    `Gene Symbol` columns and CL-labeled set names works.
 
-Then:
+treeline slots in after `sc.tl.leiden`, one function per step, all on the top-level
+namespace:
 
-```bash
+```python
+import json
+import scanpy as sc
+import treeline as tln
+
 # 1. Once per gene-set table: resolve the CL labels against EBI OLS4 and freeze the DAG.
 #    Needs network; everything after this is offline and reproducible.
-treeline derive-tree uterus_gene_sets.csv cl_dag.json
+dag = tln.derive_tree("uterus_gene_sets.csv")
+json.dump(dag, open("cl_dag.json", "w"), indent=2)      # later: dag = tln.load_tree("cl_dag.json")
 
 # 2. Annotate. Cheap — pass every clustering resolution you have.
-treeline annotate sample.h5ad --dag cl_dag.json --gene-sets uterus_gene_sets.csv \
-    --clusters leiden_0.5 leiden_1.0 leiden_2.0 -o sample_annotated.h5ad
+adata = sc.read_h5ad("sample.h5ad")                      # clustered, log-normalized
+tln.annotate(adata, dag, "uterus_gene_sets.csv", ["leiden_0.5", "leiden_1.0", "leiden_2.0"])
 
 # 3. Look at it.
-treeline summary sample_annotated.h5ad
-treeline report  sample_annotated.h5ad -o report.html   # interactive coarse→fine slider
+tln.summary(adata)
+tln.report({"sample": adata}, "report.html")             # interactive coarse→fine slider
 ```
 
 `summary` prints each cluster's path with the vote share at every level, plus any gate
@@ -88,19 +94,20 @@ leiden_2.0 — 22 clusters
 (Cluster 6 stopped at the root: nothing below cleared the descent threshold, so it is
 `Unknown` to the integration prior — and NS-Forest still found what distinguishes it.)
 
-The annotated `.h5ad` is self-contained: per-nucleus labels in
-`obs["treeline_<cluster_key>"]`, per-cluster calls / shares / refusals in
-`uns["treeline"]` (a JSON string — decode with `treeline.annotations(adata)`).
+`annotate` mutates in place: per-nucleus labels land in `obs["treeline_<cluster_key>"]`,
+per-cluster calls / shares / refusals in `uns["treeline"]` (a JSON string — decode with
+`tln.annotations(adata)`). Write it out with `adata.write_h5ad(...)` and the file is
+self-contained: every later step reads from it.
 
 ### Substates and integration
 
-```bash
+```python
 # NS-Forest {GENE}+ names for clusters that collapsed under one label.
 # The costly step — run it once, on the resolution you settle on.
-treeline substates sample_annotated.h5ad --clusters leiden_2.0 -o sample_annotated.h5ad
+tln.add_substates(adata, ["leiden_2.0"])
 
 # Two or more annotated samples -> scANVI latent, supervised by the tree-cut labels.
-treeline integrate a_annotated.h5ad b_annotated.h5ad -o joint.h5ad
+joint = tln.integrate({"a": a, "b": b})
 ```
 
 `integrate` writes the joint latent to `obsm["X_treeline"]` and stops. Recluster it
@@ -108,41 +115,30 @@ yourself, then send the joint object back through `annotate` — same vote, same
 now on cross-sample clusters:
 
 ```python
-import scanpy as sc
-from treeline.annotate import annotate, add_substates
-from treeline.tree import load
-
-joint = sc.read_h5ad("joint.h5ad")
 sc.pp.neighbors(joint, use_rep="X_treeline")
 sc.tl.umap(joint)
 sc.tl.leiden(joint, resolution=2.0, key_added="leiden_2.0", flavor="igraph")
 
-annotate(joint, load("cl_dag.json"), "uterus_gene_sets.csv", ["leiden_2.0"])
-add_substates(joint, ["leiden_2.0"])
-joint.write_h5ad("joint_annotated.h5ad")
+tln.annotate(joint, dag, "uterus_gene_sets.csv", ["leiden_2.0"])
+tln.add_substates(joint, ["leiden_2.0"])
+
+tln.palette(tln.annotations(joint))                       # {label: hex}; same parent, same hue
+tln.report({"a": a, "b": b, "joint": joint}, "report.html")
 ```
 
-```bash
-treeline colors joint_annotated.h5ad -o palette.json   # hierarchical palette: same parent, same hue
-treeline report a_annotated.h5ad b_annotated.h5ad joint_annotated.h5ad -o report.html
-```
+## API
 
-## Python API
-
-Every CLI verb is one function; the drivers in `apps/` are worked examples. The
-`annotate`/`tree` functions below are also re-exported from `treeline` itself.
-
-| verb | function | notes |
+| function | does | notes |
 |---|---|---|
-| `derive-tree` | `treeline.tree.derive(set_names)` / `load(path)` | `set_names_from_csv(csv)` reads the CellGuide export |
-| `annotate` | `treeline.annotate.annotate(adata, dag, gene_sets_csv, cluster_keys, overrides=None, **params)` | mutates and returns `adata` |
-| `substates` | `treeline.annotate.add_substates(adata, cluster_keys)` | requires a previously annotated `adata` |
-| `integrate` | `treeline.scanvi.integrate({name: adata, ...}, **params)` | returns the joint AnnData |
-| `colors` | `treeline.colors.palette(*annotations)` | `annotations(adata)` decodes `uns["treeline"]` |
-| `report` | `treeline.report.render_report(paths, out)` | static HTML, no server |
-
-Helpers: `treeline.annotate.coarse_labels(adata, key)` (the class below the DAG root),
-`treeline.tree.subdag(dag, root)` (restrict the DAG to one class's subtree — see below).
+| `derive_tree(gene_sets_csv)` | CSV → DAG dict, via EBI OLS4 | network; `load_tree(path)` reads a saved one |
+| `annotate(adata, dag, gene_sets_csv, cluster_keys, overrides=None, **params)` | the vote | mutates and returns `adata` |
+| `summary(adata)` | print paths, shares, refusals, overrides | |
+| `add_substates(adata, cluster_keys)` | NS-Forest `{GENE}+` names | requires a previously annotated `adata` |
+| `integrate({name: adata, ...}, **params)` | scANVI latent in `obsm["X_treeline"]` | returns the joint AnnData; needs `[integrate]` |
+| `report({name: adata, ...}, out)` | static HTML, no server | needs a 2-D `obsm` embedding (`basis="X_umap"`) |
+| `palette(*annotations)` | hierarchical `{label: hex}` | `annotations(adata)` decodes `uns["treeline"]` |
+| `load_overrides(path)` | schema-checked expert overrides | see below |
+| `coarse_labels(adata, key)`, `subdag(dag, root)` | the class below the root; restrict the DAG to one class | per-class refinement, below |
 
 ### Tuning knobs
 
@@ -154,8 +150,31 @@ All named keyword parameters with loud defaults; also CLI flags.
 | `descend_agree` | 0.5 | vote share a child needs before the cluster descends into it |
 | `gate_overlap` | 0.5 | discriminability gate: refuse a descent whose sibling panels share ≥ this fraction of exclusive genes **and** … |
 | `gate_score_r` | 0.9 | … whose per-nucleus scores correlate ≥ this (both must trip; the refusal reports both numbers) |
+| `min_cluster` | 20 | substates: clusters smaller than this get no name |
+| `n_trees`, `top_gini`, `top_combo` | 100, 15, 6 | substates: NS-Forest search width (forest size, genes kept by Gini, genes entering the combination search) |
+| `beta` | 0.5 | substates: F-beta weight; <1 favours precision |
 | `supervise_depth` | 2 | integrate: truncate labels at this depth for the scANVI prior |
+| `n_hvg`, `n_latent` | 2000, 30 | integrate: genes for training, latent dimensions |
+| `scvi_epochs`, `scanvi_epochs` | 100, 50 | integrate: training length (drop both for a smoke run) |
 | `classification_ratio` | 50 | integrate: label pull vs batch mixing |
+
+### CLI
+
+Every function is also a verb over `.h5ad` files, for pipelines and for looking at a
+file without opening Python. Sample names are the file stems minus `_annotated`.
+
+```bash
+treeline derive-tree uterus_gene_sets.csv cl_dag.json
+treeline annotate sample.h5ad --dag cl_dag.json --gene-sets uterus_gene_sets.csv \
+    --clusters leiden_0.5 leiden_1.0 leiden_2.0 [--overrides overrides.json] -o sample_annotated.h5ad
+treeline summary   sample_annotated.h5ad
+treeline substates sample_annotated.h5ad --clusters leiden_2.0 -o sample_annotated.h5ad
+treeline integrate a_annotated.h5ad b_annotated.h5ad -o joint.h5ad
+treeline colors    a_annotated.h5ad b_annotated.h5ad -o palette.json
+treeline report    a_annotated.h5ad b_annotated.h5ad joint_annotated.h5ad -o report.html
+```
+
+`treeline <verb> --help` documents every argument.
 
 ## Advanced usage
 
@@ -171,17 +190,16 @@ dependency):
 
 ```python
 import harmonypy, numpy as np, scanpy as sc
-from treeline.annotate import annotate, add_substates, coarse_labels
-from treeline.tree import load, subdag
+import treeline as tln
 
-dag = load("cl_dag.json")
+dag = tln.load_tree("cl_dag.json")
 
 # Stage 1: high-res joint clustering on the integrated latent, full-DAG annotation.
 # This fixes the coarse classes.
 sc.pp.neighbors(joint, use_rep="X_treeline")
 sc.tl.leiden(joint, resolution=2.0, key_added="leiden_joint", flavor="igraph")
-annotate(joint, dag, GENE_SETS, ["leiden_joint"])
-coarse = coarse_labels(joint, "leiden_joint")
+tln.annotate(joint, dag, GENE_SETS, ["leiden_joint"])
+coarse = tln.coarse_labels(joint, "leiden_joint")
 
 # Stage 2: per class — class-specific HVGs, UNSUPERVISED batch correction (the labels are
 # the thing under investigation here, so scANVI would be circular), modest-resolution
@@ -198,19 +216,20 @@ for cls in [c for c, n in coarse.value_counts().items() if n >= 500 and c in dag
     sc.pp.neighbors(sub, use_rep="X_sub")
     sc.tl.leiden(sub, resolution=0.5, key_added="subcluster", flavor="igraph")
 
-    annotate(sub, subdag(dag, cls), GENE_SETS, ["subcluster"])  # vote constrained to the class
-    add_substates(sub, ["subcluster"])
+    tln.annotate(sub, tln.subdag(dag, cls), GENE_SETS, ["subcluster"])  # vote constrained to the class
+    tln.add_substates(sub, ["subcluster"])
     joint.obs.loc[mask, "subtype"] = sub.obs["treeline_subcluster"].to_numpy()
 ```
 
 Labels paste back onto the *unchanged* global UMAP — refinement changes labels, never
-the embedding. `subdag(dag, cls)` is the important bit: the sub-vote starts at the class
+the embedding. `tln.subdag(dag, cls)` is the important bit: the sub-vote starts at the class
 node, so a weak subcluster stalls at `smooth muscle cell`, not at `eukaryotic cell`.
 
 ### Expert overrides
 
 Whatever the ontology and the automated rules can't decide is domain knowledge, and it
-goes in an overrides JSON — never in code:
+goes in an overrides JSON — never in code — and reaches `annotate` via
+`overrides=tln.load_overrides("overrides.json")` (or `--overrides`):
 
 ```json
 [{"node": "endothelial cell", "decision": "stop",
@@ -251,7 +270,8 @@ person signs it — `assets/overrides.proposed.json` is an example of one in tha
 ## Layout
 
 ```
-src/treeline/   tree.py (derive-tree)  annotate.py (annotate + substates)  vote.py  nsforest.py
+src/treeline/   __init__.py (the API)  tree.py (derive-tree)  annotate.py (annotate + substates + summary)
+                vote.py  nsforest.py
                 scanvi.py (integrate)  colors.py  report.py  cli.py
 apps/           POC drivers on the dev dataset: poc_1619.py (per-sample), joint_1619.py (loop)
 assets/         dev data — gene sets, frozen DAG, overrides; h5ads gitignored (see assets/README.md)

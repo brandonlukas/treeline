@@ -46,12 +46,20 @@ def main() -> None:
     n = sub.add_parser("substates", help="NS-Forest {gene}+ substate naming — costly; run on the clustering you settle on")
     n.add_argument("h5ad", help="annotated h5ad from annotate")
     n.add_argument("--clusters", nargs="+", required=True, metavar="OBS_KEY", help="annotated clusterings to name substates in")
+    n.add_argument("--min-cluster", type=int, default=None, help="skip clusters smaller than this (default 20)")
+    n.add_argument("--n-trees", type=int, default=None, help="random forest size (default 100)")
+    n.add_argument("--top-gini", type=int, default=None, help="genes kept by Gini importance (default 15)")
+    n.add_argument("--top-combo", type=int, default=None, help="genes entering the combination search (default 6)")
+    n.add_argument("--beta", type=float, default=None, help="F-beta weight, <1 favours precision (default 0.5)")
     n.add_argument("-o", "--out", required=True, help="output h5ad (may equal the input)")
 
     i = sub.add_parser("integrate", help="annotated h5ads -> joint h5ad with the scANVI latent")
     i.add_argument("h5ads", nargs="+", help="two or more annotated h5ads with layers['counts']; sample name = stem minus _annotated")
     i.add_argument("--supervise-depth", type=int, default=None, help="tree cut for the prior (default 2)")
+    i.add_argument("--n-hvg", type=int, default=None, help="highly variable genes for training (default 2000)")
     i.add_argument("--n-latent", type=int, default=None, help="latent dimensions (default 30)")
+    i.add_argument("--scvi-epochs", type=int, default=None, help="scVI pretraining epochs (default 100)")
+    i.add_argument("--scanvi-epochs", type=int, default=None, help="scANVI epochs (default 50)")
     i.add_argument("--classification-ratio", type=float, default=None,
                    help="label pull vs mixing (default 50; a judgment call when sample==condition)")
     i.add_argument("-o", "--out", required=True, help="joint h5ad with the latent in obsm['X_treeline']")
@@ -71,10 +79,13 @@ def main() -> None:
 
     args = p.parse_args()
 
-    if args.cmd == "derive-tree":
-        from treeline.tree import derive, set_names_from_csv
+    def kwargs(*names):  # only knobs the user set; the functions carry the defaults
+        return {n: getattr(args, n) for n in names if getattr(args, n) is not None}
 
-        dag = derive(set_names_from_csv(args.gene_sets))
+    if args.cmd == "derive-tree":
+        from treeline.tree import derive_tree
+
+        dag = derive_tree(args.gene_sets)
         Path(args.out).write_text(json.dumps(dag, indent=2))
         print(f"wrote {args.out}: {len(dag['nodes'])} nodes, roots={dag['roots']}")
 
@@ -87,10 +98,8 @@ def main() -> None:
 
         overrides = load_overrides(args.overrides) if args.overrides else []  # before the slow read
         adata = sc.read_h5ad(args.h5ad)
-        kw = {k: v for k, v in [("n_markers", args.n_markers), ("descend_agree", args.descend_agree),
-                                ("gate_overlap", args.gate_overlap), ("gate_score_r", args.gate_score_r)]
-              if v is not None}
-        annotate(adata, load(args.dag), args.gene_sets, args.clusters, overrides, **kw)
+        annotate(adata, load(args.dag), args.gene_sets, args.clusters, overrides,
+                 **kwargs("n_markers", "descend_agree", "gate_overlap", "gate_score_r"))
         adata.write_h5ad(args.out)
         print(f"wrote {args.out}")
 
@@ -100,7 +109,7 @@ def main() -> None:
         from treeline.annotate import add_substates
 
         adata = sc.read_h5ad(args.h5ad)
-        add_substates(adata, args.clusters)
+        add_substates(adata, args.clusters, **kwargs("min_cluster", "n_trees", "top_gini", "top_combo", "beta"))
         adata.write_h5ad(args.out)
         print(f"wrote {args.out}")
 
@@ -110,10 +119,9 @@ def main() -> None:
         from treeline.annotate import sample_names
         from treeline.scanvi import integrate
 
-        kw = {k: v for k, v in [("supervise_depth", args.supervise_depth), ("n_latent", args.n_latent),
-                                ("classification_ratio", args.classification_ratio)]
-              if v is not None}
-        joint = integrate({n: sc.read_h5ad(f) for n, f in sample_names(args.h5ads).items()}, **kw)
+        joint = integrate({n: sc.read_h5ad(f) for n, f in sample_names(args.h5ads).items()},
+                          **kwargs("supervise_depth", "n_hvg", "n_latent", "scvi_epochs", "scanvi_epochs",
+                                   "classification_ratio"))
         joint.write_h5ad(args.out)
         print(f"wrote {args.out} — recluster obsm['X_treeline'] and resubmit through annotate")
 
@@ -128,34 +136,19 @@ def main() -> None:
         print(f"wrote {args.out}")
 
     elif args.cmd == "report":
+        import scanpy as sc
+
+        from treeline.annotate import sample_names
         from treeline.report import render_report
 
-        render_report(args.h5ads, args.out, args.title, args.basis)
+        render_report({n: sc.read_h5ad(f) for n, f in sample_names(args.h5ads).items()}, args.out, args.title, args.basis)
 
     elif args.cmd == "summary":
         import scanpy as sc
 
-        from treeline.annotate import annotations
+        from treeline.annotate import summary
 
-        a = sc.read_h5ad(args.h5ad, backed="r")  # obs + uns only; X stays on disk
-        ann = annotations(a)
-        for key in ann["cluster_keys"]:
-            sizes = a.obs[key].astype(str).value_counts()
-            calls = ann["calls"][key]
-            print(f"\n{key} — {len(calls)} clusters")
-            for cl in sorted(calls, key=lambda c: -sizes.get(c, 0)):
-                c = calls[cl]
-                chain = " > ".join(f"{lv['node']} {lv['share'] * 100:.0f}%" for lv in c["levels"]) or "Unknown"
-                sfx = ann["suffixes"].get(key, {}).get(cl)
-                extra = ""
-                if sfx:
-                    combo = "+".join(sfx["markers"])
-                    extra = f"  [{combo}+ Fbeta {sfx['fbeta']} PPV {sfx['ppv']} recall {sfx['recall']}]"
-                if c["refused"]:
-                    extra += f"\n{'':>13}gate: {c['refused']}"
-                if c["overridden"]:
-                    extra += f"\n{'':>13}override: {c['overridden']}"
-                print(f"  {cl:>3} {sizes.get(cl, 0):>7,}  {chain}{extra}")
+        summary(sc.read_h5ad(args.h5ad, backed="r"))  # obs + uns only; X stays on disk
 
 
 if __name__ == "__main__":

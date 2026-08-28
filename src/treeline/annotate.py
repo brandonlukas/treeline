@@ -115,6 +115,29 @@ def coarse_labels(adata, key: str) -> pd.Series:
     return parts.map(lambda p: p[1] if len(p) > 1 else p[0])
 
 
+def summary(adata) -> None:
+    """The summary verb: print each cluster's path with the vote share at every level,
+    plus substate markers, gate refusals and overrides. Reads obs + uns only."""
+    ann = annotations(adata)
+    for key in ann["cluster_keys"]:
+        sizes = adata.obs[key].astype(str).value_counts()
+        calls = ann["calls"][key]
+        print(f"\n{key} — {len(calls)} clusters")
+        for cl in sorted(calls, key=lambda c: -sizes.get(c, 0)):
+            c = calls[cl]
+            chain = " > ".join(f"{lv['node']} {lv['share'] * 100:.0f}%" for lv in c["levels"]) or "Unknown"
+            sfx = ann["suffixes"].get(key, {}).get(cl)
+            extra = ""
+            if sfx:
+                combo = "+".join(sfx["markers"])
+                extra = f"  [{combo}+ Fbeta {sfx['fbeta']} PPV {sfx['ppv']} recall {sfx['recall']}]"
+            if c["refused"]:
+                extra += f"\n{'':>13}gate: {c['refused']}"
+            if c["overridden"]:
+                extra += f"\n{'':>13}override: {c['overridden']}"
+            print(f"  {cl:>3} {sizes.get(cl, 0):>7,}  {chain}{extra}")
+
+
 def sample_names(paths) -> dict[str, Path]:
     """Sample name for each h5ad = file stem minus `_annotated`; refuses collisions
     (two `annotated.h5ad` in different dirs would silently merge)."""

@@ -14,9 +14,7 @@ from pathlib import Path
 
 import scanpy as sc
 
-from treeline.annotate import annotate
-from treeline.tree import load
-from treeline.vote import load_overrides
+import treeline as tln
 
 ASSETS = Path("assets")
 OUT = Path("results/poc")
@@ -27,8 +25,8 @@ KEYS = [f"leiden_{r}" for r in RESOLUTIONS]
 
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
-    dag = load(ASSETS / "cl_dag.json")
-    overrides = load_overrides(ASSETS / "overrides.json")
+    dag = tln.load_tree(ASSETS / "cl_dag.json")
+    overrides = tln.load_overrides(ASSETS / "overrides.json")
     for sample in SAMPLES:
         adata = sc.read_h5ad(ASSETS / f"{sample}_gex.h5ad")
         print(f"{sample}: {adata.shape}")
@@ -42,7 +40,7 @@ def main() -> None:
         for res in RESOLUTIONS:
             sc.tl.leiden(adata, resolution=res, key_added=f"leiden_{res}", flavor="igraph", n_iterations=2)
         # no substates per sample: NS-Forest runs once, on the integrated object
-        annotate(adata, dag, ASSETS / "cellguide_uterus_gene_sets_2026-08-22.csv", KEYS, overrides)
+        tln.annotate(adata, dag, ASSETS / "cellguide_uterus_gene_sets_2026-08-22.csv", KEYS, overrides)
         for key in KEYS:
             print(f"  {key}: {adata.obs[key].nunique()} clusters -> "
                   f"{adata.obs[f'treeline_{key}'].nunique()} labels")

@@ -14,6 +14,7 @@ clustering): the report reads the 2-D basis named by --basis (default X_umap) an
 refuses loudly when it is missing. Vanilla JS on canvas; no server, no frameworks.
 
     treeline report a_annotated.h5ad b_annotated.h5ad -o report.html [--basis X_umap]
+    treeline.report({"a": a, "b": b}, "report.html")
 """
 
 from __future__ import annotations
@@ -21,19 +22,16 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from treeline.annotate import annotations, sample_names
+from treeline.annotate import annotations
 from treeline.colors import observed_paths, palette, path_tree
 
 
-def build_data(paths: list[Path], basis: str = "X_umap") -> dict:
-    import scanpy as sc
-
+def build_data(adatas: dict, basis: str = "X_umap") -> dict:
     samples, calls, suffixes, anns, obs_names = {}, {}, {}, [], {}
-    for name, f in sample_names(paths).items():
-        a = sc.read_h5ad(f)
+    for name, a in adatas.items():
         if basis not in a.obsm:
             raise ValueError(
-                f"{f}: no 2-D embedding at obsm[{basis!r}] — treeline computes no embedding "
+                f"{name}: no 2-D embedding at obsm[{basis!r}] — treeline computes no embedding "
                 f"(like clustering, it is the user's job). Available obsm keys: "
                 f"{list(a.obsm.keys())}. Compute one (e.g. sc.tl.umap) or pass --basis."
             )
@@ -84,10 +82,10 @@ def build_data(paths: list[Path], basis: str = "X_umap") -> dict:
     }
 
 
-def render_report(paths: list, out, title: str | None = None, basis: str = "X_umap") -> None:
-    paths = [Path(p) for p in paths]
-    title = title or "treeline · " + ", ".join(sample_names(paths))
-    data = build_data(paths, basis)
+def render_report(adatas: dict, out, title: str | None = None, basis: str = "X_umap") -> None:
+    """The report verb: `{name: annotated AnnData}` -> one self-contained HTML file."""
+    title = title or "treeline · " + ", ".join(adatas)
+    data = build_data(adatas, basis)
     html = TEMPLATE.replace("__TITLE__", title).replace("__DATA__", json.dumps(data, separators=(",", ":")))
     Path(out).write_text(html)
     print(f"wrote {out} ({Path(out).stat().st_size / 1e6:.1f} MB)")

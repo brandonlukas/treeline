@@ -13,10 +13,7 @@ from pathlib import Path
 
 import scanpy as sc
 
-from treeline.annotate import add_substates, annotate
-from treeline.scanvi import integrate
-from treeline.tree import load
-from treeline.vote import load_overrides
+import treeline as tln
 
 ASSETS = Path("assets")
 OUT = Path("results/poc")
@@ -27,7 +24,7 @@ GENE_SETS = ASSETS / "cellguide_uterus_gene_sets_2026-08-22.csv"
 
 
 def main() -> None:
-    joint = integrate({s: sc.read_h5ad(OUT / f"{s}_annotated.h5ad") for s in SAMPLES})
+    joint = tln.integrate({s: sc.read_h5ad(OUT / f"{s}_annotated.h5ad") for s in SAMPLES})
 
     # driver business: cluster the latent (the "user reclusters" step of the loop)
     sc.pp.neighbors(joint, use_rep="X_treeline")
@@ -36,9 +33,9 @@ def main() -> None:
         sc.tl.leiden(joint, resolution=res, key_added=f"leiden_{res}", flavor="igraph", n_iterations=2)
 
     # resubmit through the annotate verb: same vote, same rules, on the joint clusters
-    dag = load(ASSETS / "cl_dag.json")
-    annotate(joint, dag, GENE_SETS, KEYS, load_overrides(ASSETS / "overrides.json"))
-    add_substates(joint, ["leiden_2.0"])  # costly: final resolution only
+    dag = tln.load_tree(ASSETS / "cl_dag.json")
+    tln.annotate(joint, dag, GENE_SETS, KEYS, tln.load_overrides(ASSETS / "overrides.json"))
+    tln.add_substates(joint, ["leiden_2.0"])  # costly: final resolution only
     for key in KEYS:
         print(f"  {key}: {joint.obs[key].nunique()} clusters -> "
               f"{joint.obs[f'treeline_{key}'].nunique()} labels")
