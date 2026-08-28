@@ -128,8 +128,8 @@ def suffixes_for(
         if call["path"]:
             by_path[tuple(call["path"])].append(cl)
     out: dict[str, dict] = {}
+    counts = clusters.value_counts()
     for group in by_path.values():
-        counts = clusters.value_counts()
         keep = [c for c in group if counts.get(c, 0) >= min_cluster]
         if len(keep) < 2:
             continue

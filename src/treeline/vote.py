@@ -58,17 +58,14 @@ def load_panels(csv_path, dag: dict, n_markers: int = N_MARKERS) -> dict[str, li
     return panels
 
 
-def score_nodes(adata, panels: dict[str, list[str]]) -> list[str]:
-    """Score every panel with >=3 present genes into obs score_{label}; returns labels scored."""
+def score_nodes(adata, panels: dict[str, list[str]]) -> None:
+    """Score every panel with >=3 present genes into obs score_{label}."""
     import scanpy as sc
 
-    scored = []
     for label, panel in panels.items():
         genes = [g for g in panel if g in adata.var_names]
         if len(genes) >= 3:
             sc.tl.score_genes(adata, genes, score_name=f"score_{label}")
-            scored.append(label)
-    return scored
 
 
 @dataclass
@@ -180,8 +177,9 @@ def _gate(
     shared, smaller = len(genes_a & genes_b), min(len(genes_a), len(genes_b))
     if shared / smaller < gate_overlap:
         return None
-    sub_a = scores[[f"score_{n}" for n in excl_a if n in {c.removeprefix('score_') for c in scores.columns}]]
-    sub_b = scores[[f"score_{n}" for n in excl_b if n in {c.removeprefix('score_') for c in scores.columns}]]
+    have = {c.removeprefix("score_") for c in scores.columns}
+    sub_a = scores[[f"score_{n}" for n in excl_a if n in have]]
+    sub_b = scores[[f"score_{n}" for n in excl_b if n in have]]
     if sub_a.empty or sub_b.empty:
         return None
     with np.errstate(invalid="ignore"):

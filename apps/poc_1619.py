@@ -22,6 +22,7 @@ ASSETS = Path("assets")
 OUT = Path("results/poc")
 SAMPLES = ["1619LM", "1619MM"]
 RESOLUTIONS = [0.5, 1.0, 2.0]
+KEYS = [f"leiden_{r}" for r in RESOLUTIONS]
 
 
 def main() -> None:
@@ -41,9 +42,8 @@ def main() -> None:
         for res in RESOLUTIONS:
             sc.tl.leiden(adata, resolution=res, key_added=f"leiden_{res}", flavor="igraph", n_iterations=2)
         # no substates per sample: NS-Forest runs once, on the integrated object
-        annotate(adata, dag, ASSETS / "cellguide_uterus_gene_sets_2026-08-22.csv",
-                 [f"leiden_{r}" for r in RESOLUTIONS], overrides)
-        for key in [f"leiden_{r}" for r in RESOLUTIONS]:
+        annotate(adata, dag, ASSETS / "cellguide_uterus_gene_sets_2026-08-22.csv", KEYS, overrides)
+        for key in KEYS:
             print(f"  {key}: {adata.obs[key].nunique()} clusters -> "
                   f"{adata.obs[f'treeline_{key}'].nunique()} labels")
         adata.write_h5ad(OUT / f"{sample}_annotated.h5ad")

@@ -306,7 +306,7 @@ treeline/
   assets/                 dev/test data (gitignored except small files — see assets/README.md)
   src/treeline/           the API: tree.py (derive-tree), annotate.py (annotate +
                           substates, orchestrating vote.py + nsforest.py), scanvi.py
-                          (integrate), colors.py, report.py, harmonize.py, cli.py —
+                          (integrate), colors.py, report.py, cli.py —
                           flat, no subpackages
   apps/                   POC drivers, not API: poc_1619.py (per-sample),
                           joint_1619.py (integration loop)

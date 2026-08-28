@@ -22,6 +22,7 @@ ASSETS = Path("assets")
 OUT = Path("results/poc")
 SAMPLES = ["1619LM", "1619MM"]
 RESOLUTIONS = [0.5, 1.0, 2.0]
+KEYS = [f"leiden_{r}" for r in RESOLUTIONS]
 GENE_SETS = ASSETS / "cellguide_uterus_gene_sets_2026-08-22.csv"
 
 
@@ -36,10 +37,9 @@ def main() -> None:
 
     # resubmit through the annotate verb: same vote, same rules, on the joint clusters
     dag = load(ASSETS / "cl_dag.json")
-    annotate(joint, dag, GENE_SETS, [f"leiden_{r}" for r in RESOLUTIONS],
-             load_overrides(ASSETS / "overrides.json"))
+    annotate(joint, dag, GENE_SETS, KEYS, load_overrides(ASSETS / "overrides.json"))
     add_substates(joint, ["leiden_2.0"])  # costly: final resolution only
-    for key in [f"leiden_{r}" for r in RESOLUTIONS]:
+    for key in KEYS:
         print(f"  {key}: {joint.obs[key].nunique()} clusters -> "
               f"{joint.obs[f'treeline_{key}'].nunique()} labels")
     joint.write_h5ad(OUT / "integrated_annotated.h5ad")

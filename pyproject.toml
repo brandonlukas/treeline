@@ -16,7 +16,7 @@ treeline = "treeline.cli:main"
 
 [project.optional-dependencies]
 integrate = ["scvi-tools"]
-dev = ["pytest", "ruff", "mypy"]
+dev = ["pytest", "ruff"]
 
 [build-system]
 requires = ["hatchling"]

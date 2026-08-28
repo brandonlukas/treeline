@@ -13,12 +13,31 @@ from __future__ import annotations
 
 import colorsys
 
-from treeline.harmonize import path_tree
-
 UNKNOWN = "#9a9a9a"
 SATURATION = 0.58
 L_START, L_STEP, L_MIN = 0.66, 0.08, 0.30  # lightness darkens with path depth
 SHRINK = 0.4  # below the first branching, children stay within this fraction of the parent's arc
+
+
+def observed_paths(calls: dict) -> list[tuple[str, ...]]:
+    """Every distinct path across {sample: {res: {cluster: {'path': [...]}}}}. Per-sample
+    cluster ids never need to match — their CL paths are the shared vocabulary."""
+    seen: dict[tuple[str, ...], None] = {}
+    for by_res in calls.values():
+        for by_cluster in by_res.values():
+            for call in by_cluster.values():
+                seen[tuple(call["path"])] = None
+    return list(seen)
+
+
+def path_tree(paths: list[tuple[str, ...]]) -> dict:
+    """Union of paths as nested {label: subtree} — the harmonized label space."""
+    root: dict = {}
+    for p in paths:
+        node = root
+        for label in p:
+            node = node.setdefault(label, {})
+    return root
 
 
 def _leaves(node: dict) -> int:

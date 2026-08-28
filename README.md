@@ -252,7 +252,7 @@ person signs it — `assets/overrides.proposed.json` is an example of one in tha
 
 ```
 src/treeline/   tree.py (derive-tree)  annotate.py (annotate + substates)  vote.py  nsforest.py
-                scanvi.py (integrate)  colors.py  report.py  harmonize.py  cli.py
+                scanvi.py (integrate)  colors.py  report.py  cli.py
 apps/           POC drivers on the dev dataset: poc_1619.py (per-sample), joint_1619.py (loop)
 assets/         dev data — gene sets, frozen DAG, overrides; h5ads gitignored (see assets/README.md)
 SPECS.md        the design: provenance contract, DAG vote semantics, known-hard problems, v2

@@ -22,8 +22,7 @@ import json
 from pathlib import Path
 
 from treeline.annotate import annotations, sample_names
-from treeline.colors import palette
-from treeline.harmonize import observed_paths, path_tree
+from treeline.colors import observed_paths, palette, path_tree
 
 
 def build_data(paths: list[Path], basis: str = "X_umap") -> dict:
